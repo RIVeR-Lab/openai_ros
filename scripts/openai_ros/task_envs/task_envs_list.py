@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2021.10.06
+LAST UPDATE: 2022.03.12
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
-
+            Gary M. Lvov (GML)
+            Hongyu Li (LHY)
+            
 E-MAIL: akmandor.n@northeastern.edu
+        lvov.g@northeastern.edu
+        li.hongyu1@northeastern.edu
 
 DESCRIPTION: TODO...
 
 REFERENCES:
-[1] Make sure every robot is working.
 
 NUA TODO:
+- Make sure every robot is working.
+- Change naming convention to "robotName_taskName" (all small characters)
 '''
 
 from gym.envs.registration import register
@@ -217,6 +222,19 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
         from openai_ros.task_envs.turtlebot3 import turtlebot3_tentabot_drl
 
     # NUA EDIT
+    elif task_env == ('TurtleBot3Realtentabot_drl-v0' + str(robot_id)):
+
+        register(
+            id=task_env,
+            entry_point='openai_ros.task_envs.turtlebot3.turtlebot3real_tentabot_drl:TurtleBot3RealTentabotDRL',
+            max_episode_steps=max_episode_steps,
+            kwargs={'robot_id': robot_id, 'data_folder_path': data_folder_path},
+        )
+
+        # import our training environment
+        from openai_ros.task_envs.turtlebot3 import turtlebot3_tentabot_drl
+
+    # NUA EDIT
     elif task_env == ('Fireflytentabot_drl-v0' + str(robot_id)):
 
         register(
@@ -228,6 +246,30 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
 
         # import our training environment
         from openai_ros.task_envs.firefly import firefly_tentabot_drl
+    
+    # LHY,NUA EDIT
+    elif task_env == ('stretch_nav-v0'):
+        register(
+            id=task_env,
+            entry_point='openai_ros.task_envs.stretch.stretch_nav:StretchNav',
+            max_episode_steps=max_episode_steps,
+            kwargs={'robot_id': robot_id, 'data_folder_path': data_folder_path},
+        )
+
+        # import our training environment
+        from openai_ros.task_envs.stretch import stretch_nav
+
+    # LHY EDIT
+    elif task_env == ('StretchRealtentabot_drl-v0' + str(robot_id)):
+        register(
+            id=task_env,
+            entry_point='openai_ros.task_envs.stretch.stretchreal_tentabot_drl:StretchRealTentabotDRL',
+            max_episode_steps=max_episode_steps,
+            kwargs={'robot_id': robot_id, 'data_folder_path': data_folder_path},
+        )
+
+        # import our training environment
+        from openai_ros.task_envs.stretch import stretchreal_tentabot_drl
 
     elif task_env == 'WamvNavTwoSetsBuoys-v0':
 
@@ -239,6 +281,14 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
 
         # import our training environment
         from openai_ros.task_envs.wamv import wamv_nav_twosets_buoys
+
+    elif task_env == ("ROSbottentabot_drl-v0" + str(robot_id)):
+        register(
+            id=task_env,
+            entry_point="openai_ros.task_envs.husarion.ROSbot_tentabot_drl:ROSbotTentabotDRL",
+            max_episode_steps=max_episode_steps,
+        )
+        from openai_ros.task_envs.husarion import ROSbot_tentabot_drl
 
     # Add here your Task Envs to be registered
     else:

@@ -1,21 +1,41 @@
+'''
+LAST UPDATE: 2022.XX.XX
+
+AUTHOR:     OPENAI_ROS
+            Neset Unver Akmandor (NUA)
+            Gary M. Lvov (GML)
+
+E-MAIL: akmandor.n@northeastern.edu
+        lvov.g@northeastern.edu
+
+DESCRIPTION: TODO...
+
+REFERENCES:
+[1] 
+
+'''
+
 import numpy
 import rospy
+import time
 from openai_ros import robot_gazebo_env
 from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
-from openai_ros.openai_ros_common import ROSLauncher
+from openai_ros import robot_gazebo_env
+#from openai_ros.openai_ros_common import ROSLauncher
 
 
 class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
     """Superclass for all CubeSingleDisk environments.
     """
 
-    def __init__(self, ros_ws_abspath):
+    def __init__(self, robot_namespace="", initial_pose={}, data_folder_path="", velocity_control_msg=""):
         """
         Initializes a new HusarionEnv environment.
         Husarion doesnt use controller_manager, therefore we wont reset the
@@ -41,50 +61,53 @@ class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
 
         Args:
         """
-        rospy.logerr(">>>>>>>>>>>Start HusarionEnv INIT...")
+        rospy.logdebug("ROSbot_env::__init__ -> START...")
         # Variables that we give through the constructor.
         # None in this case
         # We launch the ROSlaunch that spawns the robot into the world
-        ROSLauncher(rospackage_name="rosbot_gazebo",
+        """ ROSLauncher(rospackage_name="rosbot_gazebo",
                     launch_file_name="put_robot_in_world.launch",
                     ros_ws_abspath=ros_ws_abspath)
-        rospy.logerr(">>>>>>>>>>>ROSLAUCHER DONE HusarionEnv INIT...")
+        rospy.logerr(">>>>>>>>>>>ROSLAUCHER DONE HusarionEnv INIT...")"""
         # Internal Vars
         # Doesnt have any accesibles
-        self.controllers_list = []
-
-        # It doesnt use namespace
-        self.robot_name_space = ""
+        self.controllers_list = ["imu"]
+        self.robot_namespace = robot_namespace
 
         # We launch the init function of the Parent Class robot_gazebo_env.RobotGazeboEnv
         super(HusarionEnv, self).__init__(controllers_list=self.controllers_list,
-                                          robot_name_space=self.robot_name_space,
+                                          robot_namespace=self.robot_namespace,
                                           reset_controls=False,
                                           start_init_physics_parameters=False,
-                                          reset_world_or_sim="WORLD")
+                                          initial_pose=self.initial_pose)
 
         self.gazebo.unpauseSim()
         # self.controllers_object.reset_controllers()
         self._check_all_sensors_ready()
 
         # We Start all the ROS related Subscribers and publishers
-        rospy.Subscriber("/odom", Odometry, self._odom_callback)
-        rospy.Subscriber("/camera/depth/image_raw", Image,
-                         self._camera_depth_image_raw_callback)
-        rospy.Subscriber("/camera/depth/points", PointCloud2,
-                         self._camera_depth_points_callback)
-        rospy.Subscriber("/camera/rgb/image_raw", Image,
-                         self._camera_rgb_image_raw_callback)
-        rospy.Subscriber("/scan", LaserScan,
-                         self._laser_scan_callback)
+        rospy.Subscriber("/" + str(self.robot_namespace) + "/odom", Odometry, self._odom_callback)
+        rospy.Subscriber("/" + str(self.robot_namespace) + "/imu", Imu, self._imu_callback)
+        rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self._laser_scan_callback)
+        #rospy.Subscriber("/camera/depth/image_raw", Image, self._camera_depth_image_raw_callback)
+        #rospy.Subscriber("/camera/depth/points", PointCloud2, self._camera_depth_points_callback)
+        #rospy.Subscriber("/camera/rgb/image_raw", Image, self._camera_rgb_image_raw_callback)
 
-        self._cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        if velocity_control_msg:
+            self._cmd_vel_pub = rospy.Publisher(velocity_control_msg, Twist, queue_size=1)
 
+        else:    
+            self._cmd_vel_pub = rospy.Publisher("/" + str(self.robot_namespace) + '/cmd_vel', Twist, queue_size=1)
+
+        print("ROSbot_env::__init__ -> BEFORE velocity_control_msg: " + velocity_control_msg )
+        print("ROSbot_env::__init__ -> BEFORE " + "/" + str(self.robot_namespace) + '/cmd_vel')
         self._check_publishers_connection()
+
+        print("ROSbot_env::__init__ -> AFTER")
 
         self.gazebo.pauseSim()
 
-        rospy.logdebug("Finished HusarionEnv INIT...")
+        rospy.logdebug("ROSbot_env::__init__ -> END")
 
     # Methods needed by the RobotGazeboEnv
     # ----------------------------
@@ -103,86 +126,95 @@ class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
     def _check_all_sensors_ready(self):
         rospy.logdebug("START ALL SENSORS READY")
         self._check_odom_ready()
-        # We dont need to check for the moment, takes too long
-        self._check_camera_depth_image_raw_ready()
-        self._check_camera_depth_points_ready()
-        self._check_camera_rgb_image_raw_ready()
+        self._check_imu_ready()
         self._check_laser_scan_ready()
-        rospy.logdebug("ALL SENSORS READY")
+        # We dont need to check for the moment, takes too long
+        #self._check_camera_depth_image_raw_ready()
+        #self._check_camera_depth_points_ready()
+        #self._check_camera_rgb_image_raw_ready()
+        rospy.logdebug("ROSBot_env::_check_all_sensors_ready -> END")
 
     def _check_odom_ready(self):
         self.odom = None
-        rospy.logdebug("Waiting for /odom to be READY...")
+        rospy.logdebug("ROSbot_env::_check_odom_ready -> Waiting for /" + str(self.robot_namespace) + "/odom to be READY...")
         while self.odom is None and not rospy.is_shutdown():
             try:
-                self.odom = rospy.wait_for_message(
-                    "/odom", Odometry, timeout=5.0)
-                rospy.logdebug("Current /odom READY=>")
+                self.odom = rospy.wait_for_message("/" + str(self.robot_namespace) + "/odom", Odometry, timeout=1.0)
+                rospy.logdebug("ROSbot_env::_check_odom_ready -> Current /" + str(self.robot_namespace) + "/odom READY!")
 
             except:
-                rospy.logerr(
-                    "Current /odom not ready yet, retrying for getting odom")
+                rospy.logerr("ROSbot_env::_check_odom_ready -> Current /" + str(self.robot_namespace) + "/odom not ready yet, retrying...")
 
         return self.odom
 
-    def _check_camera_depth_image_raw_ready(self):
-        self.camera_depth_image_raw = None
-        rospy.logdebug("Waiting for /camera/depth/image_raw to be READY...")
-        while self.camera_depth_image_raw is None and not rospy.is_shutdown():
+    def _check_imu_ready(self):
+
+        self.imu = None
+        rospy.logdebug("ROSBot::_check_imu_ready -> Waiting for /" + str(self.robot_namespace) + "/imu to be READY...")
+        while self.imu is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_image_raw = rospy.wait_for_message(
-                    "/camera/depth/image_raw", Image, timeout=5.0)
-                rospy.logdebug("Current /camera/depth/image_raw READY=>")
+                self.imu = rospy.wait_for_message("/" + str(self.robot_namespace) + "/imu", Imu, timeout=1.0)
+                rospy.logdebug("ROSBot::_check_imu_ready -> Current /" + str(self.robot_namespace) + "/imu READY!")
 
             except:
-                rospy.logerr(
-                    "Current /camera/depth/image_raw not ready yet, retrying for getting camera_depth_image_raw")
+                rospy.logerr("ROSBot::_check_imu_ready -> Current /" + str(self.robot_namespace) + "/imu not ready yet, retrying...")
+
+        return self.imu
+
+    def _check_laser_scan_ready(self):
+        self.laser_scan = None
+        rospy.logdebug("ROSbot::_check_laser_scan_ready -> Waiting for /" + str(self.robot_namespace) + "/scan to be READY...")
+        while self.laser_scan is None and not rospy.is_shutdown():
+            try:
+                self.laser_scan = rospy.wait_for_message("/" + str(self.robot_namespace) + "/scan", LaserScan, timeout=1.0)
+                rospy.logdebug("ROSbot::_check_laser_scan_ready -> Current /" + str(self.robot_namespace) + "/scan READY!")
+
+            except:
+                rospy.logerr("ROSbot::_check_laser_scan_ready -> Current /" + str(self.robot_namespace) + "/scan not ready yet, retrying...")
+        return self.laser_scan
+
+    def _check_camera_depth_image_raw_ready(self):
+        self.camera_depth_image_raw = None
+        rospy.logdebug("ROSbot_env::_check_camera_depth_image_raw_ready -> Waiting for /" + str(self.robot_namespace) + "/camera/depth/image_raw to be READY...")
+        while self.camera_depth_image_raw is None and not rospy.is_shutdown():
+            try:
+                self.camera_depth_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/image_raw", Image, timeout=5.0)
+                rospy.logdebug("ROSbot_env::_check_camera_depth_image_raw_ready -> Current /" + str(self.robot_namespace) + "/camera/depth/image_raw READY!")
+
+            except:
+                rospy.logerr("ROSbot_env::_check_camera_depth_image_raw_ready -> Current /" + str(self.robot_namespace) + "/camera/depth/image_raw not ready yet, retrying...")
         return self.camera_depth_image_raw
 
     def _check_camera_depth_points_ready(self):
         self.camera_depth_points = None
-        rospy.logdebug("Waiting for /camera/depth/points to be READY...")
+        rospy.logdebug("ROSbot::_check_camera_depth_points_ready -> Waiting for /" + str(self.robot_namespace) + "/camera/depth/points to be READY...")
         while self.camera_depth_points is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_points = rospy.wait_for_message(
-                    "/camera/depth/points", PointCloud2, timeout=10.0)
-                rospy.logdebug("Current /camera/depth/points READY=>")
+                self.camera_depth_points = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/points", PointCloud2, timeout=5.0)
+                rospy.logdebug("ROSbot_env::_check_camera_depth_points_ready -> Current /" + str(self.robot_namespace) + "/camera/depth/points READY!")
 
             except:
-                rospy.logerr(
-                    "Current /camera/depth/points not ready yet, retrying for getting camera_depth_points")
+                rospy.logerr("ROSbot_env::_check_camera_depth_points_ready -> Current /" + str(self.robot_namespace) + "/camera/depth/points not ready yet, retrying...")
         return self.camera_depth_points
 
     def _check_camera_rgb_image_raw_ready(self):
         self.camera_rgb_image_raw = None
-        rospy.logdebug("Waiting for /camera/rgb/image_raw to be READY...")
+        rospy.logdebug("ROSbot_env::_check_camera_rgb_image_raw_ready -> Waiting for /" + str(self.robot_namespace) + "/camera/rgb/image_raw to be READY...")
         while self.camera_rgb_image_raw is None and not rospy.is_shutdown():
             try:
-                self.camera_rgb_image_raw = rospy.wait_for_message(
-                    "/camera/rgb/image_raw", Image, timeout=5.0)
-                rospy.logdebug("Current /camera/rgb/image_raw READY=>")
+                self.camera_rgb_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/rgb/image_raw", Image, timeout=5.0)
+                rospy.logdebug("ROSbot_env::_check_camera_rgb_image_raw_ready -> Current /" + str(self.robot_namespace) + "/camera/rgb/image_raw READY!")
 
             except:
-                rospy.logerr(
-                    "Current /camera/rgb/image_raw not ready yet, retrying for getting camera_rgb_image_raw")
+                rospy.logerr("ROSbot_env::_check_camera_rgb_image_raw_ready -> Current /" + str(self.robot_namespace) + "/camera/rgb/image_raw not ready yet, retrying...")
         return self.camera_rgb_image_raw
 
-    def _check_laser_scan_ready(self):
-        self.laser_scan = None
-        rospy.logdebug("Waiting for /scan to be READY...")
-        while self.laser_scan is None and not rospy.is_shutdown():
-            try:
-                self.laser_scan = rospy.wait_for_message(
-                    "/scan", LaserScan, timeout=1.0)
-                rospy.logdebug("Current /scan READY=>")
-
-            except:
-                rospy.logerr(
-                    "Current /scan not ready yet, retrying for getting laser_scan")
-        return self.laser_scan
 
     def _odom_callback(self, data):
         self.odom = data
+
+    def _imu_callback(self, data):
+        self.imu = data
 
     def _camera_depth_image_raw_callback(self, data):
         self.camera_depth_image_raw = data
@@ -201,7 +233,7 @@ class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
         Checks that all the publishers are working
         :return:
         """
-        rate = rospy.Rate(10)  # 10hz
+        rate = rospy.Rate(50)  # 10hz
         while self._cmd_vel_pub.get_num_connections() == 0 and not rospy.is_shutdown():
             rospy.logdebug(
                 "No susbribers to _cmd_vel_pub yet so we wait and try again")
@@ -210,9 +242,8 @@ class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
             except rospy.ROSInterruptException:
                 # This is to avoid error when world is rested, time when backwards.
                 pass
-        rospy.logdebug("_cmd_vel_pub Publisher Connected")
-
-        rospy.logdebug("All Publishers READY")
+        rospy.logdebug("ROSBot_env::_check_publishers_connection -> cmd_vel_pub Publisher Connected")
+        rospy.logdebug("ROSBot_env::_check_publishers_connection -> All Publishers READY")
 
     # Methods that the TrainingEnvironment will need to define here as virtual
     # because they will be used in RobotGazeboEnv GrandParentClass and defined in the
@@ -345,6 +376,9 @@ class HusarionEnv(robot_gazebo_env.RobotGazeboEnv):
             angular_speed_is = 0
             rospy.logerr("Angular Speed has wrong value=="+str(angular_speed))
 
+    def get_imu(self):
+        return self.imu
+        
     def get_odom(self):
         return self.odom
 

@@ -10,7 +10,8 @@ class ControllersConnection():
 
         rospy.logwarn("Start Init ControllersConnection")
         self.controllers_list = controllers_list
-        self.switch_service_name = '/'+namespace+'/controller_manager/switch_controller'
+        self.switch_service_name = '/controller_manager/switch_controller'
+        # self.switch_service_name = '/'+namespace+'/controller_manager/switch_controller'
         self.switch_service = rospy.ServiceProxy(self.switch_service_name, SwitchController)
         rospy.logwarn("END Init ControllersConnection")
 
@@ -22,11 +23,10 @@ class ControllersConnection():
         :return:
         """
         rospy.wait_for_service(self.switch_service_name)
-
         try:
             switch_request_object = SwitchControllerRequest()
             switch_request_object.start_controllers = controllers_on
-            switch_request_object.start_controllers = controllers_off
+            switch_request_object.stop_controllers = controllers_off
             switch_request_object.strictness = strictness
 
             switch_result = self.switch_service(switch_request_object)

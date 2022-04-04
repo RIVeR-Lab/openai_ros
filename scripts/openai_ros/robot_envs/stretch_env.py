@@ -5,8 +5,10 @@ LAST UPDATE: 2022.03.13
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
+            Hongyu Li (LHY)
 
 E-MAIL: akmandor.n@northeastern.edu
+        li.hongyu1@northastern.edu
 
 DESCRIPTION: TODO...
 
@@ -34,11 +36,11 @@ from openai_ros import robot_gazebo_env
 '''
 DESCRIPTION: TODO...Superclass for all CubeSingleDisk environments.
 '''
-class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
+class StretchEnv(robot_gazebo_env.RobotGazeboEnv):
 
     '''
     DESCRIPTION: TODO...
-        Initializes a new TurtleBot3Env environment.
+        Initializes a new StretchEnv environment.
         Turtlebot3 doesnt use controller_manager, therefore we wont reset the 
         controllers in the standard fashion. For the moment we wont reset them.
         
@@ -52,13 +54,13 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
         The Sensors: The sensors accesible are the ones considered usefull for AI learning.
         
         Sensor Topic List:
-        * /odom: Odometry readings of the Base of the Robot
-        * /camera/depth/image_raw: 2d Depth image of the depth sensor.
-        * /camera/depth/points: Pointcloud sensor readings
+        * /ground_truth: Odometry readings of the Base of the Robot
+        * /camera/depth/color/image_raw: 2d Depth image of the depth sensor.
+        * /camera/depth/color/points: Pointcloud sensor readings
         * /camera/rgb/image_raw: RGB camera
-        * /kobuki/laser/scan: Laser Readings
+        * /scan: Laser Readings
         
-        Actuators Topic List: /cmd_vel
+        Actuators Topic List: /stretch_diff_drive_controller/cmd_vel
         
         Args:
     '''
@@ -67,17 +69,16 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
         # NUA TODO: This following required if SubprocVecEnv is used! 
         #rospy.init_node('robot_env_' + str(robot_namespace), anonymous=True, log_level=rospy.ERROR)
 
-        rospy.logdebug("turtlebot3_env::__init__ -> START...")
-        #print("turtlebot3_env::__init__ -> START...")
+        rospy.logdebug("stretch_env::__init__ -> START...")
 
-        self.controllers_list = ["imu"]
+        self.controllers_list = ["stretch_diff_drive_controller"]
         self.robot_namespace = robot_namespace
 
         self.initial_pose = initial_pose
         # We launch the init function of the Parent Class robot_gazebo_env.RobotGazeboEnv
-        super(TurtleBot3Env, self).__init__(controllers_list=self.controllers_list,
+        super(StretchEnv, self).__init__(   controllers_list=self.controllers_list,
                                             robot_namespace=self.robot_namespace,
-                                            reset_controls=False,
+                                            reset_controls=True,
                                             start_init_physics_parameters=False,
                                             initial_pose=self.initial_pose)
 
@@ -86,25 +87,24 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
         self._check_all_sensors_ready()
 
         # We Start all the ROS related Subscribers and publishers
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/odom", Odometry, self._odom_callback)
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/imu", Imu, self._imu_callback)
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self._laser_scan_callback)
+        rospy.Subscriber("/ground_truth", Odometry, self._odom_callback)
+        rospy.Subscriber("/imu/data", Imu, self._imu_callback)
+        rospy.Subscriber("/scan", LaserScan, self._laser_scan_callback)
         #rospy.Subscriber("/camera/depth/image_raw", Image, self._camera_depth_image_raw_callback)
-        #rospy.Subscriber("/camera/depth/points", PointCloud2, self._camera_depth_points_callback)
+        rospy.Subscriber("/camera/depth/color/points", PointCloud2, self._camera_depth_points_callback)
         #rospy.Subscriber("/camera/rgb/image_raw", Image, self._camera_rgb_image_raw_callback)
 
         if velocity_control_msg:
             self._cmd_vel_pub = rospy.Publisher(velocity_control_msg, Twist, queue_size=1)
 
         else:    
-            self._cmd_vel_pub = rospy.Publisher("/" + str(self.robot_namespace) + '/cmd_vel', Twist, queue_size=1)
+            self._cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
         self._check_publishers_connection()
 
         self.gazebo.pauseSim()
 
-        rospy.logdebug("turtlebot3_env::__init__ -> END")
-        #print("turtlebot3_env::__init__ -> END")
+        rospy.logdebug("stretch_env::__init__ -> END")
 
     # Methods needed by the RobotGazeboEnv
     # ----------------------------
@@ -125,30 +125,30 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_all_sensors_ready(self):
         
-        rospy.logdebug("turtlebot3_env::_check_all_sensors_ready -> START...")
+        rospy.logdebug("stretch_env::_check_all_sensors_ready -> START...")
         self._check_odom_ready()
         self._check_imu_ready()
         self._check_laser_scan_ready()
         #self._check_camera_depth_image_raw_ready()
         #self._check_camera_depth_points_ready()
         #self._check_camera_rgb_image_raw_ready()
-        rospy.logdebug("turtlebot3_env::_check_all_sensors_ready -> END")
+        rospy.logdebug("stretch_env::_check_all_sensors_ready -> END")
 
     '''
     DESCRIPTION: TODO...
     '''
     def _check_odom_ready(self):
 
-        rospy.logdebug("turtlebot3_env::_check_odom_ready -> Waiting to be READY...")
+        rospy.logdebug("stretch_env::_check_odom_ready -> Waiting to be READY...")
 
         self.odom = None
         while self.odom is None and not rospy.is_shutdown():
             try:
-                self.odom = rospy.wait_for_message("/" + str(self.robot_namespace) + "/odom", Odometry, timeout=1.0)
-                rospy.logdebug("turtlebot3_env::_check_odom_ready -> READY!")
+                self.odom = rospy.wait_for_message("/ground_truth", Odometry, timeout=1.0)
+                rospy.logdebug("stretch_env::_check_odom_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_odom_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_odom_ready -> not ready yet, retrying...")
 
         return self.odom
 
@@ -157,16 +157,16 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_imu_ready(self):
 
-        rospy.logdebug("turtlebot3_env::_check_imu_ready -> Waiting to be READY...")
+        rospy.logdebug("stretch_env::_check_imu_ready -> Waiting to be READY...")
 
         self.imu = None
         while self.imu is None and not rospy.is_shutdown():
             try:
-                self.imu = rospy.wait_for_message("/" + str(self.robot_namespace) + "/imu", Imu, timeout=1.0)
-                rospy.logdebug("turtlebot3_env::_check_imu_ready -> READY!")
+                self.imu = rospy.wait_for_message("/imu/data", Imu, timeout=1.0)
+                rospy.logdebug("stretch_env::_check_imu_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_imu_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_imu_ready -> not ready yet, retrying...")
 
         return self.imu
 
@@ -180,11 +180,11 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
         self.laser_scan = None
         while self.laser_scan is None and not rospy.is_shutdown():
             try:
-                self.laser_scan = rospy.wait_for_message("/" + str(self.robot_namespace) + "/scan", LaserScan, timeout=1.0)
-                rospy.logdebug("turtlebot3_env::_check_laser_scan_ready -> READY!")
+                self.laser_scan = rospy.wait_for_message("/scan", LaserScan, timeout=1.0)
+                rospy.logdebug("stretch_env::_check_laser_scan_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_laser_scan_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_laser_scan_ready -> not ready yet, retrying...")
         return self.laser_scan
 
     '''
@@ -192,16 +192,16 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_camera_depth_image_raw_ready(self):
 
-        rospy.logdebug("turtlebot3_env::_check_camera_depth_image_raw_ready -> Waiting to be READY...")
+        rospy.logdebug("stretch_env::_check_camera_depth_image_raw_ready -> Waiting to be READY...")
 
         self.camera_depth_image_raw = None
         while self.camera_depth_image_raw is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/image_raw", Image, timeout=5.0)
-                rospy.logdebug("turtlebot3_env::_check_camera_depth_image_raw_ready -> READY!")
+                self.camera_depth_image_raw = rospy.wait_for_message("/camera/depth/image_raw", Image, timeout=5.0)
+                rospy.logdebug("stretch_env::_check_camera_depth_image_raw_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_camera_depth_image_raw_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_camera_depth_image_raw_ready -> not ready yet, retrying...")
         return self.camera_depth_image_raw
     
     '''
@@ -209,16 +209,16 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_camera_depth_points_ready(self):
 
-        rospy.logdebug("turtlebot3_env::_check_camera_depth_points_ready -> Waiting to be READY...")
+        rospy.logdebug("stretch_env::_check_camera_depth_points_ready -> Waiting to be READY...")
 
         self.camera_depth_points = None
         while self.camera_depth_points is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_points = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/points", PointCloud2, timeout=5.0)
-                rospy.logdebug("turtlebot3_env::_check_camera_depth_points_ready -> READY!")
+                self.camera_depth_points = rospy.wait_for_message("/camera/depth/color/points", PointCloud2, timeout=5.0)
+                rospy.logdebug("stretch_env::_check_camera_depth_points_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_camera_depth_points_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_camera_depth_points_ready -> not ready yet, retrying...")
         return self.camera_depth_points
     
     '''
@@ -226,16 +226,16 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_camera_rgb_image_raw_ready(self):
 
-        rospy.logdebug("turtlebot3_env::_check_camera_rgb_image_raw_ready -> Waiting to be READY...")
+        rospy.logdebug("stretch_env::_check_camera_rgb_image_raw_ready -> Waiting to be READY...")
 
         self.camera_rgb_image_raw = None
         while self.camera_rgb_image_raw is None and not rospy.is_shutdown():
             try:
-                self.camera_rgb_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/rgb/image_raw", Image, timeout=5.0)
-                rospy.logdebug("turtlebot3_env::_check_camera_rgb_image_raw_ready -> READY!")
+                self.camera_rgb_image_raw = rospy.wait_for_message("/camera/rgb/image_raw", Image, timeout=5.0)
+                rospy.logdebug("stretch_env::_check_camera_rgb_image_raw_ready -> READY!")
 
             except:
-                rospy.logerr("turtlebot3_env::_check_camera_rgb_image_raw_ready -> not ready yet, retrying...")
+                rospy.logerr("stretch_env::_check_camera_rgb_image_raw_ready -> not ready yet, retrying...")
         return self.camera_rgb_image_raw
 
     '''
@@ -282,14 +282,14 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
 
         rate = rospy.Rate(50)  # 10hz
         while self._cmd_vel_pub.get_num_connections() == 0 and not rospy.is_shutdown():
-            rospy.logdebug("turtlebot3_env::_check_publishers_connection -> No subscribers to cmd_vel_pub yet so we wait and try again")
+            rospy.logdebug("stretch_env::_check_publishers_connection -> No subscribers to cmd_vel_pub yet so we wait and try again")
             try:
                 rate.sleep()
             except rospy.ROSInterruptException:
                 # This is to avoid error when world is rested, time when backwards.
                 pass
-        rospy.logdebug("turtlebot3_env::_check_publishers_connection -> cmd_vel_pub Publisher Connected")
-        rospy.logdebug("turtlebot3_env::_check_publishers_connection -> All Publishers READY")
+        rospy.logdebug("stretch_env::_check_publishers_connection -> cmd_vel_pub Publisher Connected")
+        rospy.logdebug("stretch_env::_check_publishers_connection -> All Publishers READY")
 
     # Methods that the TrainingEnvironment will need to define here as virtual
     # because they will be used in RobotGazeboEnv GrandParentClass and defined in the
@@ -350,7 +350,7 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
         cmd_vel_value = Twist()
         cmd_vel_value.linear.x = linear_speed
         cmd_vel_value.angular.z = angular_speed
-        rospy.logdebug("turtlebot3_env::move_base -> cmd_vel_value: " + str(cmd_vel_value))
+        rospy.logdebug("stretch_env::move_base -> cmd_vel_value: " + str(cmd_vel_value))
         
         self._check_publishers_connection()
         self._cmd_vel_pub.publish(cmd_vel_value)
@@ -457,4 +457,4 @@ class TurtleBot3Env(robot_gazebo_env.RobotGazeboEnv):
     def update_initial_pose(self, initial_pose):
 
         self.initial_pose = initial_pose
-        super(TurtleBot3Env, self).update_initial_pose(self.initial_pose)
+        super(StretchEnv, self).update_initial_pose(self.initial_pose)

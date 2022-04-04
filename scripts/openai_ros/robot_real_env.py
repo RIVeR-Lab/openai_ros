@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2022.03.11
+LAST UPDATE: 2021.12.10
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -19,8 +19,8 @@ NUA TODO:
 import rospy
 import gym
 from gym.utils import seeding
-from .gazebo_connection import GazeboConnection
-from .controllers_connection import ControllersConnection
+#from .gazebo_connection import GazeboConnection
+#from .controllers_connection import ControllersConnection
 
 #https://bitbucket.org/theconstructcore/theconstruct_msgs/src/master/msg/RLExperimentInfo.msg
 from openai_ros.msg import RLExperimentInfo
@@ -28,20 +28,20 @@ from openai_ros.msg import RLExperimentInfo
 '''
 DESCRIPTION: TODO...
 '''
-class RobotGazeboEnv(gym.Env):
+class RobotRealEnv(gym.Env):
 
     '''
     DESCRIPTION: TODO...
     '''
-    def __init__(self, robot_namespace, controllers_list, reset_controls, start_init_physics_parameters=False, reset_world_or_sim="ROBOT", initial_pose={}):
+    #def __init__(self, robot_namespace, controllers_list, reset_controls, start_init_physics_parameters=False, reset_world_or_sim="ROBOT", initial_pose={}):
+    def __init__(self, robot_namespace):
 
-        rospy.logdebug("robot_gazebo_env::__init__ -> START...")
-        #print("robot_gazebo_env::__init__ -> START...")
+        rospy.logdebug("robot_real_env::__init__ -> START...")
         
-        self.initial_pose = initial_pose
-        self.gazebo = GazeboConnection(start_init_physics_parameters, reset_world_or_sim, robot_namespace=robot_namespace, initial_pose=self.initial_pose)
-        self.controllers_object = ControllersConnection(namespace=robot_namespace, controllers_list=controllers_list)
-        self.reset_controls = reset_controls
+        #self.initial_pose = initial_pose
+        #self.gazebo = GazeboConnection(start_init_physics_parameters, reset_world_or_sim, robot_namespace=robot_namespace, initial_pose=self.initial_pose)
+        #self.controllers_object = ControllersConnection(namespace=robot_namespace, controllers_list=controllers_list)
+        #self.reset_controls = reset_controls
         self.seed()
 
         # Set up ROS related variables
@@ -58,12 +58,11 @@ class RobotGazeboEnv(gym.Env):
         This has to do with the fact that some plugins with tf, dont understand the reset of the simulation
         and need to be reseted to work properly.
         """
-        self.gazebo.unpauseSim()
-        if self.reset_controls:
-            self.controllers_object.reset_controllers()
+        #self.gazebo.unpauseSim()
+        #if self.reset_controls:
+        #    self.controllers_object.reset_controllers()
 
-        rospy.logdebug("robot_gazebo_env::__init__ -> END")
-        #print("robot_gazebo_env::__init__ -> END")
+        rospy.logdebug("robot_real_env::__init__ -> END")
 
     # Env methods
 
@@ -85,16 +84,16 @@ class RobotGazeboEnv(gym.Env):
     '''
     def step(self, action):
 
-        rospy.logdebug("robot_gazebo_env::step -> START...")
-        self.gazebo.unpauseSim()
+        rospy.logdebug("robot_real_env::step -> START...")
+        #self.gazebo.unpauseSim()
         self._set_action(action)
-        self.gazebo.pauseSim()
+        #self.gazebo.pauseSim()
         obs = self._get_obs()
         done = self._is_done(obs)
         info = {}
         reward = self._compute_reward(obs, done)
         self.cumulated_episode_reward += reward
-        rospy.logdebug("robot_gazebo_env::step -> END")
+        rospy.logdebug("robot_real_env::step -> END")
 
         return obs, reward, done, info
 
@@ -103,12 +102,12 @@ class RobotGazeboEnv(gym.Env):
     '''
     def reset(self):
 
-        rospy.logdebug("robot_gazebo_env::reset -> START...")
+        rospy.logdebug("robot_real_env::reset -> START...")
         self._reset_sim()
         self._init_env_variables()
         self._update_episode()
         obs = self._get_obs()
-        rospy.logdebug("robot_gazebo_env::reset -> END")
+        rospy.logdebug("robot_real_env::reset -> END")
         return obs
 
     '''
@@ -118,8 +117,8 @@ class RobotGazeboEnv(gym.Env):
     '''
     def close(self):
 
-        rospy.logdebug("robot_gazebo_env::close -> Closing RobotGazeboEnvironment")
-        rospy.signal_shutdown("robot_gazebo_env::close -> Closing RobotGazeboEnvironment")
+        rospy.logdebug("robot_real_env::close -> Closing RobotRealEnvironment")
+        rospy.signal_shutdown("robot_real_env::close -> Closing RobotRealEnvironment")
 
     '''
     DESCRIPTION: TODO...Publishes the cumulated reward of the episode and
@@ -129,7 +128,7 @@ class RobotGazeboEnv(gym.Env):
     def _update_episode(self):
 
         self._publish_reward_topic(self.cumulated_episode_reward, self.episode_num)
-        rospy.logdebug("robot_gazebo_env::_update_episode -> cumulated_episode_reward: " + str(self.cumulated_episode_reward))
+        rospy.logdebug("robot_real_env::_update_episode -> cumulated_episode_reward: " + str(self.cumulated_episode_reward))
 
         self.episode_num += 1
         self.cumulated_episode_reward = 0
@@ -156,32 +155,41 @@ class RobotGazeboEnv(gym.Env):
     '''
     def _reset_sim(self):
 
-        rospy.logdebug("robot_gazebo_env::_reset_sim -> START...")
+        rospy.logdebug("robot_real_env::_reset_sim -> START...")
+        
+        self._check_all_systems_ready()
+        self._set_init_pose()
+        self._check_all_systems_ready()
+
+        '''
         if self.reset_controls :
-            rospy.logdebug("robot_gazebo_env::_reset_sim -> RESET CONTROLLERS")
-            self.gazebo.unpauseSim()
-            self.controllers_object.reset_controllers()
+            
+            rospy.logdebug("robot_real_env::_reset_sim -> RESET CONTROLLERS")
+            #self.gazebo.unpauseSim()
+            #self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
             self._set_init_pose()
-            self.gazebo.pauseSim()
-            self.gazebo.resetSim()
-            self.gazebo.unpauseSim()
-            self.controllers_object.reset_controllers()
+            #self.gazebo.pauseSim()
+            #self.gazebo.resetSim()
+            #self.gazebo.unpauseSim()
+            #self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
-            self.gazebo.pauseSim()
+            #self.gazebo.pauseSim()
 
         else:
-            rospy.logdebug("robot_gazebo_env::_reset_sim -> DONT RESET CONTROLLERS")
-            self.gazebo.unpauseSim()
+
+            rospy.logdebug("robot_real_env::_reset_sim -> DONT RESET CONTROLLERS")
+            #self.gazebo.unpauseSim()
             self._check_all_systems_ready()
             self._set_init_pose()
-            self.gazebo.pauseSim()
-            self.gazebo.resetSim()
-            self.gazebo.unpauseSim()
+            #self.gazebo.pauseSim()
+            #self.gazebo.resetSim()
+            #self.gazebo.unpauseSim()
             self._check_all_systems_ready()
-            self.gazebo.pauseSim()
+            #self.gazebo.pauseSim()
+        '''
 
-        rospy.logdebug("robot_gazebo_env::_reset_sim -> END")
+        rospy.logdebug("robot_real_env::_reset_sim -> END")
         return True
 
     '''
@@ -234,13 +242,4 @@ class RobotGazeboEnv(gym.Env):
     '''
     def _env_setup(self, initial_qpos):
         raise NotImplementedError()
-
-    '''
-    DESCRIPTION: TODO...
-    value.
-    '''
-    def update_initial_pose(self, initial_pose):
-        
-        self.initial_pose = initial_pose
-        self.gazebo.update_initial_pose(self.initial_pose)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2021.08.16
+LAST UPDATE: 2022.03.11
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -61,8 +61,11 @@ class GazeboConnection():
     def pauseSim(self):
 
         rospy.logdebug("gazebo_connection::pauseSim -> START...")
+        #print("gazebo_connection::pauseSim -> START...")
+        
         paused_done = False
         counter = 0
+        
         while not paused_done and not rospy.is_shutdown():
             if counter < self._max_retry:
                 try:
@@ -79,6 +82,7 @@ class GazeboConnection():
                 assert False, error_message
 
         rospy.logdebug("gazebo_connection::pauseSim -> END")
+        #print("gazebo_connection::pauseSim -> END")
 
     '''
     DESCRIPTION: TODO...
@@ -161,7 +165,12 @@ class GazeboConnection():
     def resetRobot(self):
 
         robot_reset_request = SetModelStateRequest()
-        robot_reset_request.model_state.model_name = self.robot_namespace
+        
+        if self.robot_namespace != "":
+            robot_reset_request.model_state.model_name = self.robot_namespace
+        else:
+            robot_reset_request.model_state.model_name = "robot"
+
         robot_reset_request.model_state.pose.position.x = self.initial_pose["x_init"]
         robot_reset_request.model_state.pose.position.y = self.initial_pose["y_init"]
         robot_reset_request.model_state.pose.position.z = self.initial_pose["z_init"]
@@ -171,8 +180,10 @@ class GazeboConnection():
         robot_reset_request.model_state.pose.orientation.w = self.initial_pose["w_rot_init"]
 
         rospy.wait_for_service('/gazebo/set_model_state')
+        
         try:
             self.reset_robot(robot_reset_request)
+
         except rospy.ServiceException as e:
             rospy.logdebug("gazebo_connection::resetRobot -> /gazebo/set_model_state service call failed")
 
@@ -252,5 +263,4 @@ class GazeboConnection():
     value.
     '''
     def update_initial_pose(self, initial_pose):
-        
         self.initial_pose = initial_pose

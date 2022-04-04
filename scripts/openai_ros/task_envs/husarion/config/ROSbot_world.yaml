@@ -1,4 +1,4 @@
-turtlebot3: #namespace
+ROSbot: #namespace
 
     n_actions: 3 # We have 3 actions, Forwards,TurnLeft,TurnRight
     n_observations: 6 # We have 6 different observations
