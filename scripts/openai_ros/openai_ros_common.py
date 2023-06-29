@@ -38,14 +38,14 @@ DESCRIPTION: TODO...It Does all the stuff that the user would have to do to make
 '''
 def StartOpenAI_ROS_Environment(task_and_robot_environment_name, robot_id=0, max_episode_steps=10000, data_folder_path=""):
 
-    rospy.logwarn("Env: {} will be imported".format(task_and_robot_environment_name))
+    rospy.logwarn("[openai_ros_common::StartOpenAI_ROS_Environment] Env: {} will be imported".format(task_and_robot_environment_name))
     result = RegisterOpenAI_Ros_Env(task_env=task_and_robot_environment_name, robot_id=robot_id, max_episode_steps=max_episode_steps, data_folder_path=data_folder_path)
 
     if result:
-        rospy.logwarn("Register of Task Env went OK, lets make the env..." + str(task_and_robot_environment_name))
+        rospy.logwarn("[openai_ros_common::StartOpenAI_ROS_Environment] Register of Task Env went OK, lets make the env..." + str(task_and_robot_environment_name))
         env = gym.make(task_and_robot_environment_name)
     else:
-        rospy.logwarn("Something Went wrong in the register")
+        rospy.logwarn("[openai_ros_common::StartOpenAI_ROS_Environment] Something Went wrong in the register")
         env = None
 
     return env
@@ -65,45 +65,44 @@ class ROSLauncher(object):
         # Check Package Exists
         try:
             pkg_path = self.rospack.get_path(rospackage_name)
-            rospy.logdebug("Package FOUND...")
+            rospy.logdebug("[openai_ros_common::ROSLauncher::__init__] Package FOUND...")
         except rospkg.common.ResourceNotFound:
-            rospy.logwarn("Package NOT FOUND, lets Download it...")
+            rospy.logwarn("[openai_ros_common::ROSLauncher::__init__] Package NOT FOUND, lets Download it...")
             pkg_path = self.DownloadRepo(package_name=rospackage_name,
                                          ros_ws_abspath=ros_ws_abspath)
 
         # Now we check that the Package path is inside the ros_ws_abspath
         # This is to force the system to have the packages in that ws, and not in another.
         if ros_ws_abspath in pkg_path:
-            rospy.logdebug("Package FOUND in the correct WS!")
+            rospy.logdebug("[openai_ros_common::ROSLauncher::__init__] Package FOUND in the correct WS!")
         else:
-            rospy.logwarn("Package FOUND in "+pkg_path +
+            rospy.logwarn("[openai_ros_common::ROSLauncher::__init__] Package FOUND in "+pkg_path +
                           ", BUT not in the ws="+ros_ws_abspath+", lets Download it...")
             pkg_path = self.DownloadRepo(package_name=rospackage_name,
                                          ros_ws_abspath=ros_ws_abspath)
 
         # If the package was found then we launch
         if pkg_path:
-            rospy.loginfo(
-                ">>>>>>>>>>Package found in workspace-->"+str(pkg_path))
+            rospy.loginfo("[openai_ros_common::ROSLauncher::__init__] >>>>>>>>>>Package found in workspace-->" + str(pkg_path))
             launch_dir = os.path.join(pkg_path, "launch")
             path_launch_file_name = os.path.join(launch_dir, launch_file_name)
 
-            rospy.logwarn("path_launch_file_name=="+str(path_launch_file_name))
+            rospy.logwarn("[openai_ros_common::ROSLauncher::__init__] path_launch_file_name==" + str(path_launch_file_name))
 
             source_env_command = "source "+ros_ws_abspath+"/devel/setup.bash;"
             roslaunch_command = "roslaunch  {0} {1}".format(rospackage_name, launch_file_name)
             command = source_env_command+roslaunch_command
-            rospy.logwarn("Launching command="+str(command))
+            rospy.logwarn("[openai_ros_common::ROSLauncher::__init__] Launching command=" + str(command))
 
             p = subprocess.Popen(command, shell=True)
 
             state = p.poll()
             if state is None:
-                rospy.loginfo("process is running fine")
+                rospy.loginfo("[openai_ros_common::ROSLauncher::__init__] process is running fine")
             elif state < 0:
-                rospy.loginfo("Process terminated with error")
+                rospy.loginfo("[openai_ros_common::ROSLauncher::__init__] Process terminated with error")
             elif state > 0:
-                rospy.loginfo("Process terminated without error")
+                rospy.loginfo("[openai_ros_common::ROSLauncher::__init__] Process terminated without error")
             """
             self.uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
             roslaunch.configure_logging(self.uuid)
@@ -113,10 +112,10 @@ class ROSLauncher(object):
             """
 
 
-            rospy.loginfo(">>>>>>>>>STARTED Roslaunch-->" +
+            rospy.loginfo("[openai_ros_common::ROSLauncher::__init__] >>>>>>>>>STARTED Roslaunch-->" +
                           str(self._launch_file_name))
         else:
-            assert False, "No Package Path was found for ROS apckage ==>" + \
+            assert False, "[openai_ros_common::ROSLauncher::__init__] No Package Path was found for ROS apckage ==>" + \
                 str(rospackage_name)
 
     '''

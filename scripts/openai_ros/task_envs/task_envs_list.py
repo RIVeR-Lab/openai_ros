@@ -32,6 +32,12 @@ from gym import envs
 """
 def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_folder_path=""):
 
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] START")
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] task_env: " + str(task_env))
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] robot_id: " + str(robot_id))
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] max_episode_steps: " + str(max_episode_steps))
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] data_folder_path: " + str(data_folder_path))
+
     # Task-Robot Envs
     result = True
 
@@ -290,6 +296,15 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
         )
         from openai_ros.task_envs.husarion import ROSbot_tentabot_drl
 
+    # NUA EDIT
+    elif task_env == ("JackalJaco_mobiman_drl-v0" + str(robot_id)):
+        register(
+            id=task_env,
+            entry_point="openai_ros.task_envs.jackal_jaco.jackal_jaco_mobiman_drl:JackalJacoMobimanDRL",
+            max_episode_steps=max_episode_steps,
+        )
+        from openai_ros.task_envs.jackal_jaco import jackal_jaco_mobiman_drl
+
     # Add here your Task Envs to be registered
     else:
         result = False
@@ -302,6 +317,8 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
         #print("REGISTERED GYM ENVS===>"+str(supported_gym_envs))
         assert (task_env in supported_gym_envs), "The Task_Robot_ENV given is not Registered ==>" + \
             str(task_env)
+
+    print("[task_envs_list::RegisterOpenAI_Ros_Env ] END")
 
     return result
 
