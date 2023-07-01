@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.06.30
+LAST UPDATE: 2023.07.01
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -40,6 +40,7 @@ from nav_msgs.msg import OccupancyGrid, Path, OccupancyGrid
 from nav_msgs.srv import GetPlan
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
+from octomap_msgs.msg import Octomap
 
 from gym import spaces
 from gym.envs.registration import register
@@ -108,10 +109,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         # Rospack path for pedsim reset
         # get an instance of RosPack with the default search paths
         rospack = rospkg.RosPack()
-        rospack_list = rospack.list() 
+        #rospack_list = rospack.list() 
         self.mobiman_path = rospack.get_path('mobiman_simulation')
 
         # Subscriptions
+        octomap_msg_name = rospy.get_param('octomap_msg_name', "")
+        rospy.Subscriber(octomap_msg_name, Octomap, self.callback_octomap)
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self.callback_laser_scan)
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/laser_image", OccupancyGrid, self.callback_laser_image)
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/laser_rings", Float32MultiArray, self.callback_laser_rings)
@@ -174,10 +177,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.reward_range = (-np.inf, np.inf)
         self.init_flag = True
 
-        ### NUA NOTE: LEFT HERE!!!
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] DEBUG INF")
-        while 1:
-            continue
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] DEBUG INF")
+        #while 1:
+        #    continue
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] END")
 
@@ -604,7 +606,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print(self.laser_image)
         print("----------------------------------")
         '''
-        
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def callback_octomap(self, msg):
+        self.octomap_data = msg.data
+
+        print("[jackal_jaco_mabiman_drl::JackalJacoMobimanDRL::callback_octomap] octomap_data size: " + str(len(self.octomap_data)))
+    
     '''
     DESCRIPTION: TODO...
     '''
@@ -714,14 +724,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO...
     '''
     def calculate_euclidean_distance(self, p1, p2):
-
         return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2 + (p1["z"] - p2["z"])**2)
 
     '''
     DESCRIPTION: TODO...Get the initial distance to the goal
     '''
     def get_initdistance2goal(self):
-
         return math.sqrt((self.goal_pose["x"] - self.initial_pose["x_init"])**2 + (self.goal_pose["y"] - self.initial_pose["y_init"])**2)
 
     '''
@@ -739,20 +747,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def check_collision(self, laser_scan):
 
         self.min_distance2obstacle = min(laser_scan.ranges)
-
         for scan_range in laser_scan.ranges:
-
             if (self.config.obs_min_range > scan_range > 0):
-
                 if not self._episode_done:
-
                     self.total_collisions += 1
-                    #rospy.logdebug("turtlebot3_tentabot_drl::check_collision -> Hit me baby one more time!")
-                    print("turtlebot3_tentabot_drl::check_collision -> Hit me baby one more time!")
+                    #rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] Hit me baby one more time!")
+                    print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] Hit me baby one more time!")
 
                 self._episode_done = True
                 return True
-        
         return False
 
     '''
@@ -934,120 +937,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def init_obs_waypoints(self):
-
-        self.obs_wp = np.zeros(self.config.n_wp * 2)
-
-        if self.client_move_base_get_plan():
-            translation_robot_wrt_world = tf.transformations.translation_matrix((self.odom_data.pose.pose.position.x, 
-                                                                                    self.odom_data.pose.pose.position.y, 
-                                                                                    self.odom_data.pose.pose.position.z))
-            rotation_robot_wrt_world = tf.transformations.quaternion_matrix((self.odom_data.pose.pose.orientation.x, 
-                                                                                self.odom_data.pose.pose.orientation.y, 
-                                                                                self.odom_data.pose.pose.orientation.z, 
-                                                                                self.odom_data.pose.pose.orientation.w))
-            transform_robot_wrt_world = np.matmul(translation_robot_wrt_world, rotation_robot_wrt_world)
-            transform_world_wrt_robot = tf.transformations.inverse_matrix(transform_robot_wrt_world)
-
-            wp_skip = int(self.config.look_ahead / self.config.wp_global_dist)
-
-            # downsample global plan
-            self.full_wp = self.move_base_global_plan[wp_skip::wp_skip]
-
-            # add last waypoint (goal pos)
-            if (len(self.move_base_global_plan) - 1)%wp_skip > 0:
-                self.full_wp.append(self.move_base_global_plan[-1])
-
-            # print("turtlebot3_tentabot_drl::init_obs_waypoints -> self.full_wp length: " + str(len(self.full_wp)))
-
-            for i in range(self.config.n_wp):
-                try:
-                    tmp_wp = self.full_wp[i]
-                    translation_wp_wrt_world = np.array([ [tmp_wp.pose.position.x], [tmp_wp.pose.position.y], [0.0], [1.0] ])
-                    translation_wp_wrt_robot = np.dot(transform_world_wrt_robot, translation_wp_wrt_world)
-
-                    self.obs_wp[i*2] = translation_wp_wrt_robot[0]
-                    self.obs_wp[i*2+1] = translation_wp_wrt_robot[1]
-                except:
-                    pass
-
-            # self.publish_debug_visu(self.move_base_global_plan)
-            wp_obs = list(self.full_wp[0:self.config.n_wp])
-            self.publish_wp_visu(self.full_wp,wp_obs)
-    
-    '''
-    DESCRIPTION: TODO...
-    '''
-    def update_obs_waypoints(self):
-
-        self.update_odom()
-        translation_robot_wrt_world = tf.transformations.translation_matrix((self.odom_data.pose.pose.position.x, 
-                                                                self.odom_data.pose.pose.position.y, 
-                                                                self.odom_data.pose.pose.position.z))
-        rotation_robot_wrt_world = tf.transformations.quaternion_matrix((self.odom_data.pose.pose.orientation.x, 
-                                                                            self.odom_data.pose.pose.orientation.y, 
-                                                                            self.odom_data.pose.pose.orientation.z, 
-                                                                            self.odom_data.pose.pose.orientation.w))
-        transform_robot_wrt_world = np.matmul(translation_robot_wrt_world, rotation_robot_wrt_world)
-        transform_world_wrt_robot = tf.transformations.inverse_matrix(transform_robot_wrt_world)
-
-
-        trunc_list = False
-        self.obs_wp = np.zeros(self.config.n_wp * 2)
-
-        tmp_wp = self.full_wp[0]
-
-        dist  = math.sqrt( (self.odom_data.pose.pose.position.x - tmp_wp.pose.position.x)**2 + (self.odom_data.pose.pose.position.y - tmp_wp.pose.position.y)**2 )
-
-        for s in range(1, len(self.full_wp)):
-            
-            tmp_wp = self.full_wp[s]
-            tmp_dist  = math.sqrt( (self.odom_data.pose.pose.position.x - tmp_wp.pose.position.x)**2 + (self.odom_data.pose.pose.position.y - tmp_wp.pose.position.y)**2 )
-
-            # compare to previous on every point but last point
-            if tmp_dist < dist and s < len(self.full_wp)-1:
-                dist = tmp_dist
-            else: # found closest waypoint
-                start_idx = s-1
-                # is closest wp reached in a certain radius?
-                if dist < self.config.wp_reached_dist:
-                    trunc_list = True
-
-                # is closest waypoint already overtaken? Then take next one.
-                if dist + self.config.look_ahead > tmp_dist:
-                    start_idx = s
-
-                # get all sequencing waypoints
-                for i in range(start_idx, start_idx+self.config.n_wp):
-                    try:
-                        tmp_wp = self.full_wp[i]
-                        translation_wp_wrt_world = np.array([ [tmp_wp.pose.position.x], [tmp_wp.pose.position.y], [0.0], [1.0] ])
-                        translation_wp_wrt_robot = np.dot(transform_world_wrt_robot, translation_wp_wrt_world)
-
-                        self.obs_wp[i*2] = translation_wp_wrt_robot[0]
-                        self.obs_wp[i*2+1] = translation_wp_wrt_robot[1]
-                    except:
-                        pass
-
-                break
-
-        # print(self.obs_wp)
-        # print(self.obs_wp[0], self.obs_wp[1] )
-        wp_obs = list(self.full_wp[start_idx:start_idx+self.config.n_wp])
-        
-        if trunc_list:
-            self.full_wp = self.full_wp[s-1:]
-
-        self.publish_wp_visu(self.full_wp,wp_obs)
-
-    '''
-    DESCRIPTION: TODO...
-    '''
     def init_observation_action_space(self):
+
+        ## NUA NOTE: LEFT HERE!!! UPDATE OBSERVATION ACTION SPACE!!!
 
         self.episode_oar_data = dict(obs=[], acts=[], infos=None, terminal=[], rews=[])
 
-        if self.config.observation_space_type == "laser_FC":
+        if self.config.observation_space_type == "mobiman_FC":
             
             if self.config.laser_normalize_flag:
                 
@@ -1064,17 +960,17 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
             obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_laser_low shape: " + str(obs_laser_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_target_low shape: " + str(obs_target_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_action_low shape: " + str(obs_action_low.shape))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_laser_low shape: " + str(obs_laser_low.shape))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_target_low shape: " + str(obs_target_low.shape))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_action_low shape: " + str(obs_action_low.shape))
 
             self.obs_data = {   "laser": np.vstack([obs_laser_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
                                 "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
                                 "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data laser shape: " + str(self.obs_data["laser"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data target shape: " + str(self.obs_data["target"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data action shape: " + str(self.obs_data["action"].shape))
 
             obs_stacked_laser_low = np.hstack([obs_laser_low] * self.config.n_obs_stack)
             obs_stacked_laser_high = np.hstack([obs_laser_high] * self.config.n_obs_stack)
@@ -1082,44 +978,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_space_low = np.concatenate((obs_stacked_laser_low, obs_target_low, obs_action_low), axis=0)
             obs_space_high = np.concatenate((obs_stacked_laser_high, obs_target_high, obs_action_high), axis=0)
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_stacked_laser_low shape: " + str(obs_stacked_laser_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_low shape: " + str(obs_space_low.shape))
-
-            self.obs = obs_space_low
-            self.observation_space = spaces.Box(obs_space_low, obs_space_high)
-            self.action_space = spaces.Discrete(self.config.n_actions)
-
-        elif self.config.observation_space_type == "Tentabot_FC":
-            
-            obs_occupancy_low = np.full((1, self.config.n_observations), 0.0).reshape(self.config.fc_obs_shape)
-            obs_occupancy_high = np.full((1, self.config.n_observations), 1.0).reshape(self.config.fc_obs_shape)
-
-            obs_target_low = np.array([[0.0, -math.pi]]).reshape(self.config.fc_obs_shape)
-            obs_target_high = np.array([[np.inf, math.pi]]).reshape(self.config.fc_obs_shape)
-
-            obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
-            obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
-
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_occupancy_low shape: " + str(obs_occupancy_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_target_low shape: " + str(obs_target_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_action_low shape: " + str(obs_action_low.shape))
-
-            self.obs_data = {   "occupancy": np.vstack([obs_occupancy_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            obs_stacked_occupancy_low = np.hstack([obs_occupancy_low] * self.config.n_obs_stack)
-            obs_stacked_occupancy_high = np.hstack([obs_occupancy_high] * self.config.n_obs_stack)
-
-            obs_space_low = np.concatenate((obs_stacked_occupancy_low, obs_target_low, obs_action_low), axis=0)
-            obs_space_high = np.concatenate((obs_stacked_occupancy_high, obs_target_high, obs_action_high), axis=0)
-
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_stacked_occupancy_low shape: " + str(obs_stacked_occupancy_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_low shape: " + str(obs_space_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_stacked_laser_low shape: " + str(obs_stacked_laser_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_space_low shape: " + str(obs_space_low.shape))
 
             self.obs = obs_space_low
             self.observation_space = spaces.Box(obs_space_low, obs_space_high)
@@ -1137,27 +997,16 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
             obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_occupancy_low shape: " + str(obs_occupancy_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_target_low shape: " + str(obs_target_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_action_low shape: " + str(obs_action_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_occupancy_low shape: " + str(obs_occupancy_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_target_low shape: " + str(obs_target_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_action_low shape: " + str(obs_action_low.shape))
 
-            if self.config.cit_flag:
-                
-                self.obs_data = {   "occupancy": np.vstack([obs_occupancy_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
+            self.obs_data = {   "occupancy": np.vstack([obs_occupancy_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
+                                "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
+                                "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
 
-                obs_space_occupancy_low = np.vstack([obs_occupancy_low] * self.config.n_obs_stack)
-                obs_space_occupancy_high = np.vstack([obs_occupancy_high] * self.config.n_obs_stack)       
-
-            else:
-                
-                self.obs_data = {   "occupancy": np.hstack([obs_occupancy_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-
-                obs_space_occupancy_low = np.hstack([obs_occupancy_low] * self.config.n_obs_stack)
-                obs_space_occupancy_high = np.hstack([obs_occupancy_high] * self.config.n_obs_stack)
+            obs_space_occupancy_low = np.vstack([obs_occupancy_low] * self.config.n_obs_stack)
+            obs_space_occupancy_high = np.vstack([obs_occupancy_high] * self.config.n_obs_stack)       
 
             obs_space_target_action_low = np.concatenate((obs_target_low, obs_action_low), axis=0)
             obs_space_target_action_high = np.concatenate((obs_target_high, obs_action_high), axis=0)
@@ -1167,12 +1016,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 obs_space_occupancy_low = np.expand_dims(obs_space_occupancy_low, axis=0)
                 obs_space_occupancy_high = np.expand_dims(obs_space_occupancy_high, axis=0)
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data target shape: " + str(self.obs_data["target"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data action shape: " + str(self.obs_data["action"].shape))
 
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_occupancy_low shape: " + str(obs_space_occupancy_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_target_action_low shape: " + str(obs_space_target_action_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_space_occupancy_low shape: " + str(obs_space_occupancy_low.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_space_target_action_low shape: " + str(obs_space_target_action_low.shape))
 
             self.obs = {"occupancy": obs_space_occupancy_low, 
                         "target_action": obs_space_target_action_low}
@@ -1182,184 +1031,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             self.action_space = spaces.Discrete(self.config.n_actions)
 
-        elif self.config.observation_space_type == "laser_1DCNN_FC":
-
-            if self.config.laser_normalize_flag:
-                
-                obs_laser_low = np.full((1, self.config.laser_n_range), 0.0).reshape(self.config.cnn_obs_shape)
-                obs_laser_high = np.full((1, self.config.laser_n_range), 1.0).reshape(self.config.cnn_obs_shape)
-            
-            else:
-                obs_laser_low = np.full((1, self.config.laser_n_range), self.config.laser_range_min).reshape(self.config.cnn_obs_shape)
-                obs_laser_high = np.full((1, self.config.laser_n_range), self.config.laser_range_max).reshape(self.config.cnn_obs_shape)
-
-            obs_target_low = np.array([[0.0, -math.pi]]).reshape(self.config.fc_obs_shape)
-            obs_target_high = np.array([[np.inf, math.pi]]).reshape(self.config.fc_obs_shape)
-
-            action_space_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
-            action_space_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
-
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_laser_low shape: " + str(obs_laser_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_target_low shape: " + str(obs_target_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> action_space_low shape: " + str(action_space_low.shape))
-
-            self.obs_data = {   "laser": np.vstack([obs_laser_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "action": np.vstack([action_space_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-            
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            obs_space_laser_low = np.vstack([obs_laser_low] * self.config.n_obs_stack)
-            obs_space_laser_high = np.vstack([obs_laser_high] * self.config.n_obs_stack)
-
-            obs_space_target_action_low = np.concatenate((obs_target_low, action_space_low.reshape(self.config.fc_obs_shape)), axis=0)
-            obs_space_target_action_high = np.concatenate((obs_target_high, action_space_high.reshape(self.config.fc_obs_shape)), axis=0)
-
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_laser_low shape: " + str(obs_space_laser_low.shape))
-            #print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_target_action_low shape: " + str(obs_space_target_action_low.shape))
-
-            self.obs = {"laser": obs_space_laser_low, 
-                        "target_action": obs_space_target_action_low}
-
-            self.observation_space = spaces.Dict({  "laser": spaces.Box(obs_space_laser_low, obs_space_laser_high), 
-                                                    "target_action": spaces.Box(obs_space_target_action_low, obs_space_target_action_high)})
-            
-            self.action_space = spaces.Discrete(self.config.n_actions)
-            #self.action_space = spaces.Box(action_space_low, action_space_high)
-        
-        elif self.config.observation_space_type == "laser_WP_1DCNN_FC":
-
-            if self.config.laser_normalize_flag:
-                
-                obs_laser_low = np.full((1, self.config.laser_n_range), 0.0).reshape(self.config.cnn_obs_shape)
-                obs_laser_high = np.full((1, self.config.laser_n_range), 1.0).reshape(self.config.cnn_obs_shape)
-            
-            else:
-                obs_laser_low = np.full((1, self.config.laser_n_range), self.config.laser_range_min).reshape(self.config.cnn_obs_shape)
-                obs_laser_high = np.full((1, self.config.laser_n_range), self.config.laser_range_max).reshape(self.config.cnn_obs_shape)
-
-            obs_space_waypoints_low = np.full((1, 2*self.config.n_wp), -np.inf).reshape(self.config.fc_obs_shape)
-            obs_space_waypoints_high = np.full((1, 2*self.config.n_wp), np.inf).reshape(self.config.fc_obs_shape)
-
-            obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
-            obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
-
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_laser_low shape: " + str(obs_laser_low.shape))
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_space_waypoints_low shape: " + str(obs_space_waypoints_low.shape))
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_action_low shape: " + str(obs_action_low.shape))
-
-            self.obs_data = {   "laser": np.vstack([obs_laser_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "waypoints": np.vstack([obs_space_waypoints_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-            
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_data waypoints shape: " + str(self.obs_data["waypoints"].shape))
-            # print("turtlebot3_tentabot_rl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            obs_space_laser_low = np.vstack([obs_laser_low] * self.config.n_obs_stack)
-            obs_space_laser_high = np.vstack([obs_laser_high] * self.config.n_obs_stack)
-
-            obs_space_wp_action_low = np.concatenate((obs_space_waypoints_low, obs_action_low.reshape(self.config.fc_obs_shape)), axis=0)
-            obs_space_wp_action_high = np.concatenate((obs_space_waypoints_high, obs_action_high.reshape(self.config.fc_obs_shape)), axis=0)
-
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_laser_low shape: " + str(obs_space_laser_low.shape))
-
-            self.obs = {"laser": obs_space_laser_low, 
-                        "waypoints_action ": obs_space_wp_action_low}
-
-            self.observation_space = spaces.Dict({  "laser": spaces.Box(obs_space_laser_low, obs_space_laser_high), 
-                                                    "waypoints_action": spaces.Box(obs_space_wp_action_low, obs_space_wp_action_high)})
-            
-            self.action_space = spaces.Discrete(self.config.n_actions)
-
-        elif self.config.observation_space_type == "Tentabot_WP_FC":
-            
-            obs_occupancy_low = np.full((1, self.config.n_observations), 0.0).reshape(self.config.fc_obs_shape)
-            obs_occupancy_high = np.full((1, self.config.n_observations), 1.0).reshape(self.config.fc_obs_shape)
-
-            obs_space_waypoints_low = np.full((1, 2*self.config.n_wp), -np.inf).reshape(self.config.fc_obs_shape)
-            obs_space_waypoints_high = np.full((1, 2*self.config.n_wp), np.inf).reshape(self.config.fc_obs_shape)
-
-            obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
-            obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
-
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_occupancy_low shape: " + str(obs_occupancy_low.shape))
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_waypoints_low shape: " + str(obs_space_waypoints_low.shape))
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_action_low shape: " + str(obs_action_low.shape))
-
-            self.obs_data = {   "occupancy": np.vstack([obs_occupancy_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "waypoints": np.vstack([obs_space_waypoints_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data waypoints shape: " + str(self.obs_data["waypoints"].shape))
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            obs_stacked_occupancy_low = np.hstack([obs_occupancy_low] * self.config.n_obs_stack)
-            obs_stacked_occupancy_high = np.hstack([obs_occupancy_high] * self.config.n_obs_stack)
-
-            obs_space_low = np.concatenate((obs_stacked_occupancy_low, obs_space_waypoints_low, obs_action_low), axis=0)
-            obs_space_high = np.concatenate((obs_stacked_occupancy_high, obs_space_waypoints_high, obs_action_high), axis=0)
-
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_stacked_occupancy_low shape: " + str(obs_stacked_occupancy_low.shape))
-            # print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_low shape: " + str(obs_space_low.shape))
-
-            self.obs = obs_space_low
-            self.observation_space = spaces.Box(obs_space_low, obs_space_high)
-            self.action_space = spaces.Discrete(self.config.n_actions)
-
-        elif self.config.observation_space_type == "laser_image_2DCNN_FC" or \
-             self.config.observation_space_type == "laser_rings_2DCNN_FC":
-
-            obs_laser_image_low = np.full((1, self.config.laser_image_width), 0.0)
-            obs_laser_image_low = np.vstack([obs_laser_image_low] * self.config.laser_image_height)
-            obs_laser_image_low = np.expand_dims(obs_laser_image_low, axis=0)
-
-            obs_laser_image_high = np.full((1, self.config.laser_image_width), 1.0)
-            obs_laser_image_high = np.vstack([obs_laser_image_high] * self.config.laser_image_height)
-            obs_laser_image_high = np.expand_dims(obs_laser_image_high, axis=0)
-
-            obs_target_low = np.array([[0.0, -math.pi]]).reshape(self.config.fc_obs_shape)
-            obs_target_high = np.array([[np.inf, math.pi]]).reshape(self.config.fc_obs_shape)
-
-            obs_action_low = np.array([[self.config.min_lateral_speed, self.config.min_angular_speed]]).reshape(self.config.fc_obs_shape)
-            obs_action_high = np.array([[self.config.max_lateral_speed, self.config.max_angular_speed]]).reshape(self.config.fc_obs_shape)
-            
-            self.obs_data = {   "laser_image": np.vstack([obs_laser_image_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "target": np.vstack([obs_target_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                "action": np.vstack([obs_action_low] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-
-            obs_space_laser_image_low = np.vstack([obs_laser_image_low] * self.config.n_obs_stack)
-            obs_space_laser_image_high = np.vstack([obs_laser_image_high] * self.config.n_obs_stack)
-
-            obs_space_target_action_low = np.concatenate((obs_target_low, obs_action_low), axis=0)
-            obs_space_target_action_high = np.concatenate((obs_target_high, obs_action_high), axis=0)
-
-            self.obs = {"laser_image": obs_space_laser_image_low, 
-                        "target_action": obs_space_target_action_low}
-
-            self.observation_space = spaces.Dict({  "laser_image": spaces.Box(obs_space_laser_image_low, obs_space_laser_image_high), 
-                                                    "target_action": spaces.Box(obs_space_target_action_low, obs_space_target_action_high)})
-
-            self.action_space = spaces.Discrete(self.config.n_actions)
-
-            '''
-            print("---------------------")
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> laser_image_width: " + str(self.config.laser_image_width))
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> laser_image_height: " + str(self.config.laser_image_height))
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data laser_image shape: " + str(self.obs_data["laser_image"].shape))
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_laser_image_low shape: " + str(obs_space_laser_image_low.shape))
-            print("turtlebot3_tentabot_drl::init_observation_action_space -> obs_space_target_action_low shape: " + str(obs_space_target_action_low.shape))
-            print("---------------------")
-            '''
-
-        #print("turtlebot3_tentabot_drl::init_observation_action_space -> observation_space: " + str(self.observation_space))
-        #print("turtlebot3_tentabot_drl::init_observation_action_space -> action_space: " + str(self.action_space))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] observation_space: " + str(self.observation_space))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] action_space: " + str(self.action_space))
 
     '''
     DESCRIPTION: TODO...
@@ -1444,26 +1117,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             # Update target observation
             self.update_obs_target()
-
-            if self.config.cit_flag:
                 
-                # Stack observation data
-                self.obs_data = {   "occupancy": np.vstack([self.occupancy_set] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "target": np.vstack([self.obs_target] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "action": np.vstack([self.previous_action] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
+            # Stack observation data
+            self.obs_data = {   "occupancy": np.vstack([self.occupancy_set] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
+                                "target": np.vstack([self.obs_target] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
+                                "action": np.vstack([self.previous_action] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
 
-                # Initialize observation                    
-                obs_space_occupancy = np.vstack([self.occupancy_set] * self.config.n_obs_stack)
+            # Initialize observation                    
+            obs_space_occupancy = np.vstack([self.occupancy_set] * self.config.n_obs_stack)
 
-            else:
-
-                # Stack observation data
-                self.obs_data = {   "occupancy": np.hstack([self.occupancy_set] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "target": np.vstack([self.obs_target] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)),
-                                    "action": np.vstack([self.previous_action] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))}
-
-                # Initialize observation 
-                obs_space_occupancy = np.hstack([self.occupancy_set] * self.config.n_obs_stack)
 
             obs_space_target_action = np.concatenate((self.obs_target, self.previous_action), axis=0)
 
@@ -1642,105 +1304,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def update_observation(self):
 
-        if self.config.observation_space_type == "laser_FC":
-
-            # Update laser scan
-            #self.filter_laser_scan()
-
-            if self.config.laser_normalize_flag:
-                obs_laser = self.normalized_laser_ranges
-            
-            else:
-                obs_laser = self.filtered_laser_ranges
-
-            # Update target observation
-            self.update_obs_target()
-
-            # Update observation data
-            self.obs_data["laser"] = np.vstack((self.obs_data["laser"], obs_laser))
-            self.obs_data["laser"] = np.delete(self.obs_data["laser"], np.s_[0], axis=0)
-
-            self.obs_data["target"] = np.vstack((self.obs_data["target"], self.obs_target))
-            self.obs_data["target"] = np.delete(self.obs_data["target"], np.s_[0], axis=0)
-
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            # Update observation
-            obs_stacked_laser = self.obs_data["laser"][-1,:].reshape(self.config.fc_obs_shape)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_stacked_laser shape: " + str(obs_stacked_laser.shape))
-
-            if self.config.n_obs_stack > 1:
-                latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                j = 0
-                for i in range(latest_index-1, -1, -1):
-                    j += 1
-                    if j % self.config.n_skip_obs_stack == 0:
-                        obs_stacked_laser = np.hstack((self.obs_data["laser"][i,:], obs_stacked_laser))
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_stacked_laser shape: " + str(obs_stacked_laser.shape))
-
-            self.obs = np.concatenate((obs_stacked_laser, self.obs_target, self.previous_action), axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs: " + str(self.obs.shape))
-
-        elif self.config.observation_space_type == "laser_1DCNN_FC":
-
-            # Update laser scan
-            #self.filter_laser_scan()
-
-            if self.config.laser_normalize_flag:
-                obs_laser = self.normalized_laser_ranges
-            
-            else:
-                obs_laser = self.filtered_laser_ranges
-
-            # Update target observation
-            self.update_obs_target()
-
-            # Update observation data
-            self.obs_data["laser"] = np.vstack((self.obs_data["laser"], obs_laser))
-            self.obs_data["laser"] = np.delete(self.obs_data["laser"], np.s_[0], axis=0)
-
-            self.obs_data["target"] = np.vstack((self.obs_data["target"], self.obs_target))
-            self.obs_data["target"] = np.delete(self.obs_data["target"], np.s_[0], axis=0)
-
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            # Update observation
-            obs_space_laser = self.obs_data["laser"][-1,:].reshape(self.config.cnn_obs_shape)
-
-            if self.config.n_obs_stack > 1:
-                if(self.config.n_skip_obs_stack > 1):
-                    latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                    j = 0
-                    for i in range(latest_index-1, -1, -1):
-                        j += 1
-                        if j % self.config.n_skip_obs_stack == 0:
-                            obs_space_laser = np.vstack((self.obs_data["laser"][i,:].reshape(self.config.cnn_obs_shape), obs_space_laser))
-                
-                else:
-                    obs_space_laser = self.obs_data["laser"]
-
-            obs_space_target_action = np.concatenate((self.obs_target, self.previous_action), axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_laser: " + str(obs_space_laser.shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_target_action: " + str(obs_space_target_action.shape))
-
-            self.obs["laser"] = obs_space_laser
-            self.obs["target_action"] = obs_space_target_action
-
-        elif self.config.observation_space_type == "Tentabot_FC":
+        if self.config.observation_space_type == "mobiman_FC":
             
             # Update tentabot observation
             success_rl_step = self.client_rl_step(1)
@@ -1783,200 +1347,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             #print("turtlebot3_tentabot_drl::update_observation -> obs: " + str(self.obs.shape))
 
-        elif self.config.observation_space_type == "Tentabot_1DCNN_FC" or \
-             self.config.observation_space_type == "Tentabot_2DCNN_FC":
-            
-            # Update tentabot observation
-            success_rl_step = self.client_rl_step(1)
-            if not success_rl_step:
-                rospy.logerr("turtlebot3_tentabot_drl::update_observation -> OBSERVATION FAILURE!")
-
-            # Update target observation
-            self.update_obs_target()
-
-            if self.config.cit_flag:
-
-                # Update observation data
-                self.obs_data["occupancy"] = np.vstack((self.obs_data["occupancy"], self.occupancy_set))
-                self.obs_data["occupancy"] = np.delete(self.obs_data["occupancy"], np.s_[0], axis=0)
-
-                # Update observation                    
-                obs_space_occupancy = self.obs_data["occupancy"][-1,:].reshape(self.config.cnn_obs_shape)
-
-                if self.config.n_obs_stack > 1:
-                    if(self.config.n_skip_obs_stack > 1):
-                        latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                        j = 0
-                        for i in range(latest_index-1, -1, -1):
-                            j += 1
-                            if j % self.config.n_skip_obs_stack == 0:
-                                obs_space_occupancy = np.vstack((self.obs_data["occupancy"][i,:].reshape(self.config.cnn_obs_shape), obs_space_occupancy))
-                    
-                    else:
-                        obs_space_occupancy = self.obs_data["occupancy"]
-
-            else:
-
-                # Update observation data
-                self.obs_data["occupancy"] = np.hstack((self.obs_data["occupancy"], self.occupancy_set))
-                self.obs_data["occupancy"] = np.delete(self.obs_data["occupancy"], np.s_[0], axis=1)
-
-                # Update observation                    
-                obs_space_occupancy = self.obs_data["occupancy"][:,-1].reshape(self.config.cnn_obs_shape)
-
-                #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: " + str(obs_space_occupancy.shape))
-
-                if self.config.n_obs_stack > 1:
-                    if(self.config.n_skip_obs_stack > 1):
-                        latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                        j = 0
-                        for i in range(latest_index-1, -1, -1):
-                            j += 1
-                            if j % self.config.n_skip_obs_stack == 0:
-                                obs_space_occupancy = np.hstack((self.obs_data["occupancy"][:,i].reshape(self.config.cnn_obs_shape), obs_space_occupancy))
-                    
-                    else:
-                        obs_space_occupancy = self.obs_data["occupancy"]
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: " + str(obs_space_occupancy.shape))
-
-            self.obs_data["target"] = np.vstack((self.obs_data["target"], self.obs_target))
-            self.obs_data["target"] = np.delete(self.obs_data["target"], np.s_[0], axis=0)
-
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            obs_space_target_action = np.concatenate((self.obs_target, self.previous_action), axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            if self.config.observation_space_type == "Tentabot_2DCNN_FC":
-
-                obs_space_occupancy = np.expand_dims(obs_space_occupancy, axis=0)
-                obs_space_target_action = np.expand_dims(obs_space_target_action, axis=0)
-
-            #print("**************** " + str(self.step_num))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: ")
-            #print(obs_space_occupancy[0, 65:75])
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_target dist: " + str(self.obs_target[0,0]))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_target angle: " + str(self.obs_target[0,1] * 180 / math.pi))
-            #print("turtlebot3_tentabot_drl::update_observation -> previous_action: " + str(self.previous_action))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: " + str(type(obs_space_occupancy)))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: " + str(obs_space_occupancy.shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_target_action: " + str(obs_space_target_action.shape))
-            #print("****************")
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_occupancy: " + str(obs_space_occupancy.shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_space_target_action: " + str(obs_space_target_action.shape))
-
-            self.obs["occupancy"] = obs_space_occupancy
-            self.obs["target_action"] = obs_space_target_action
-
-        elif self.config.observation_space_type == "laser_WP_1DCNN_FC":
-
-            # Update laser scan
-            #self.filter_laser_scan()
-
-            if self.config.laser_normalize_flag:
-                obs_laser = self.normalized_laser_ranges
-            
-            else:
-                obs_laser = self.filtered_laser_ranges
-
-            # Update waypoints 
-            if self.config.wp_dynamic:
-                self.init_obs_waypoints()
-            
-            else:
-                self.update_obs_waypoints()
-
-            # Update observation data
-            self.obs_data["laser"] = np.vstack((self.obs_data["laser"], obs_laser))
-            self.obs_data["laser"] = np.delete(self.obs_data["laser"], np.s_[0], axis=0)
-
-            self.obs_data["waypoints"] = np.vstack((self.obs_data["waypoints"], self.obs_wp))
-            self.obs_data["waypoints"] = np.delete(self.obs_data["waypoints"], np.s_[0], axis=0)
-
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            #print("turtlebot3_tentabot_rl::update_observation -> obs_data laser shape: " + str(self.obs_data["laser"].shape))
-            #print("turtlebot3_tentabot_rl::update_observation -> obs_data waypoints shape: " + str(self.obs_data["waypoints"].shape))
-            #print("turtlebot3_tentabot_rl::update_observation -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            # Update observation
-            obs_space_laser = self.obs_data["laser"][-1,:].reshape(self.config.cnn_obs_shape)
-
-            if self.config.n_obs_stack > 1:
-                if(self.config.n_skip_obs_stack > 1):
-                    latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                    j = 0
-                    for i in range(latest_index-1, -1, -1):
-                        j += 1
-                        if j % self.config.n_skip_obs_stack == 0:
-                            obs_space_laser = np.vstack((self.obs_data["laser"][i,:].reshape(self.config.cnn_obs_shape), obs_space_laser))
-                
-                else:
-                    obs_space_laser = self.obs_data["laser"]
-
-            obs_space_wp_action = np.concatenate((self.obs_wp, self.previous_action), axis=0)
-
-            # print("turtlebot3_tentabot_rl::update_observation -> obs_space_laser shape: " + str(obs_space_laser.shape))
-            # print("turtlebot3_tentabot_rl::update_observation -> obs_space_wp_action shape: " + str(obs_space_wp_action.shape))
-
-            self.obs["laser"] = obs_space_laser
-            self.obs["waypoints_action"] = obs_space_wp_action
-
-        elif self.config.observation_space_type == "Tentabot_WP_FC":
-
-            # Update waypoints 
-            if self.config.wp_dynamic:
-                self.init_obs_waypoints()
-            else:
-                self.update_obs_waypoints()
-
-            # Update tentabot observation
-            success_rl_step = self.client_rl_step(1)
-            if not success_rl_step:
-                rospy.logerr("turtlebot3_tentabot_drl::update_observation -> OBSERVATION FAILURE!")
-
-            # Update observation data
-            self.obs_data["occupancy"] = np.vstack((self.obs_data["occupancy"], self.occupancy_set))
-            self.obs_data["occupancy"] = np.delete(self.obs_data["occupancy"], np.s_[0], axis=0)
-
-            self.obs_data["waypoints"] = np.vstack((self.obs_data["waypoints"], self.obs_wp))
-            self.obs_data["waypoints"] = np.delete(self.obs_data["waypoints"], np.s_[0], axis=0)
-
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data occupancy shape: " + str(self.obs_data["occupancy"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data waypoints shape: " + str(self.obs_data["waypoints"].shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_data action shape: " + str(self.obs_data["action"].shape))
-
-            # Update observation
-            obs_stacked_occupancy = self.obs_data["occupancy"][-1,:].reshape(self.config.fc_obs_shape)
-
-            if self.config.n_obs_stack > 1:
-                latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
-                j = 0
-                for i in range(latest_index-1, -1, -1):
-                    j += 1
-                    if j % self.config.n_skip_obs_stack == 0:
-                        obs_stacked_occupancy = np.hstack((self.obs_data["occupancy"][i,:], obs_stacked_occupancy))
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_stacked_occupancy shape: " + str(obs_stacked_occupancy.shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> obs_wp shape: " + str(self.obs_wp.shape))
-            #print("turtlebot3_tentabot_drl::update_observation -> previous_action shape: " + str(self.previous_action.shape))
-
-            self.obs = np.concatenate((obs_stacked_occupancy, self.obs_wp, self.previous_action), axis=0)
-
-            #print("turtlebot3_tentabot_drl::update_observation -> obs: " + str(self.obs.shape))
-
-        elif self.config.observation_space_type == "laser_image_2DCNN_FC" or \
-             self.config.observation_space_type == "laser_rings_2DCNN_FC":
+        elif self.config.observation_space_type == "mobiman_2DCNN_FC":
 
             # Update target observation
             self.update_obs_target()
