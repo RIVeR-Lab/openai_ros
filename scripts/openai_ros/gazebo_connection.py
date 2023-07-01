@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2022.03.11
+LAST UPDATE: 2023.06.30
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -60,8 +60,8 @@ class GazeboConnection():
     '''
     def pauseSim(self):
 
-        rospy.logdebug("gazebo_connection::pauseSim -> START...")
-        #print("gazebo_connection::pauseSim -> START...")
+        rospy.logdebug("[gazebo_connection::GazeboConnection::pauseSim] START")
+        #print("[gazebo_connection::GazeboConnection::pauseSim] START")
         
         paused_done = False
         counter = 0
@@ -69,46 +69,46 @@ class GazeboConnection():
         while not paused_done and not rospy.is_shutdown():
             if counter < self._max_retry:
                 try:
-                    rospy.logdebug("gazebo_connection::pauseSim -> PAUSING service calling...")
+                    rospy.logdebug("[gazebo_connection::GazeboConnection::pauseSim] PAUSING service calling...")
                     self.pause()
                     paused_done = True
-                    rospy.logdebug("gazebo_connection::pauseSim -> PAUSING service calling...DONE")
+                    rospy.logdebug("[gazebo_connection::GazeboConnection::pauseSim] PAUSING service calling...DONE")
                 except rospy.ServiceException as e:
                     counter += 1
-                    rospy.logerr("gazebo_connection::pauseSim -> /gazebo/pause_physics service call failed")
+                    rospy.logerr("[gazebo_connection::GazeboConnection::pauseSim] ERROR: /gazebo/pause_physics service call failed")
             else:
-                error_message = "gazebo_connection::pauseSim -> Maximum retries done: " + str(self._max_retry) + ", please check Gazebo pause service"
+                error_message = "[gazebo_connection::GazeboConnection::pauseSim] ERROR: Maximum retries done: " + str(self._max_retry) + ", please check Gazebo pause service"
                 rospy.logerr(error_message)
                 assert False, error_message
 
-        rospy.logdebug("gazebo_connection::pauseSim -> END")
-        #print("gazebo_connection::pauseSim -> END")
+        rospy.logdebug("[gazebo_connection::GazeboConnection::pauseSim] END")
+        #print("[gazebo_connection::GazeboConnection::pauseSim] END")
 
     '''
     DESCRIPTION: TODO...
     '''
     def unpauseSim(self):
         
-        rospy.logdebug("gazebo_connection::unpauseSim -> START...")
+        rospy.logdebug("[gazebo_connection::GazeboConnection::unpauseSim] START")
         unpaused_done = False
         counter = 0
 
         while not unpaused_done and not rospy.is_shutdown():
             if counter < self._max_retry:
                 try:
-                    rospy.logdebug("gazebo_connection::unpauseSim -> UNPAUSING service calling...")
+                    rospy.logdebug("[gazebo_connection::GazeboConnection::unpauseSim] UNPAUSING service calling...")
                     self.unpause()
                     unpaused_done = True
-                    rospy.logdebug("gazebo_connection::unpauseSim -> UNPAUSING service calling...DONE")
+                    rospy.logdebug("[gazebo_connection::GazeboConnection::unpauseSim] UNPAUSING service calling...DONE")
                 except rospy.ServiceException as e:
                     counter += 1
-                    rospy.logerr("gazebo_connection::unpauseSim -> /gazebo/unpause_physics service call failed...Retrying " + str(counter))
+                    rospy.logerr("[gazebo_connection::GazeboConnection::unpauseSim] ERROR: /gazebo/unpause_physics service call failed...Retrying " + str(counter))
             else:
-                error_message = "gazebo_connection::unpauseSim -> Maximum retries done" + str(self._max_retry) + ", please check Gazebo unpause service"
+                error_message = "[gazebo_connection::GazeboConnection::unpauseSim] ERROR: Maximum retries done" + str(self._max_retry) + ", please check Gazebo unpause service"
                 rospy.logerr(error_message)
                 assert False, error_message
 
-        rospy.logdebug("gazebo_connection::unpauseSim -> END")
+        rospy.logdebug("[gazebo_connection::GazeboConnection::unpauseSim] END")
 
     '''
     DESCRIPTION: TODO...This was implemented because some simulations, when reseted the simulation
@@ -119,22 +119,22 @@ class GazeboConnection():
     def resetSim(self):
 
         if self.reset_world_or_sim == "SIMULATION":
-            rospy.logerr("gazebo_connection::resetSim -> SIMULATION RESET")
+            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
             self.resetSimulation()
 
         elif self.reset_world_or_sim == "WORLD":
-            rospy.logerr("gazebo_connection::resetSim -> WORLD RESET")
+            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] WORLD")
             self.resetWorld()
         
         elif self.reset_world_or_sim == "ROBOT":
-            rospy.logdebug("gazebo_connection::resetSim -> ROBOT RESET")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
             self.resetRobot()
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
-            rospy.logerr("gazebo_connection::resetSim -> NO RESET SIMULATION SELECTED")
+            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
         
         else:
-            rospy.logerr("gazebo_connection::resetSim -> WRONG Reset Option:" + str(self.reset_world_or_sim))
+            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] ERROR: WRONG Reset Option:" + str(self.reset_world_or_sim))
 
     '''
     DESCRIPTION: TODO...
@@ -145,7 +145,7 @@ class GazeboConnection():
         try:
             self.reset_simulation_proxy()
         except rospy.ServiceException as e:
-            rospy.logdebug("gazebo_connection::resetSimulation -> /gazebo/reset_simulation service call failed")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::resetWorld] ERROR: /gazebo/reset_simulation service call failed!")
 
 
     '''
@@ -157,7 +157,7 @@ class GazeboConnection():
         try:
             self.reset_world_proxy()
         except rospy.ServiceException as e:
-            rospy.logdebug("gazebo_connection::resetWorld -> /gazebo/reset_world service call failed")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::resetWorld] ERROR: /gazebo/reset_world service call failed!")
 
     '''
     DESCRIPTION: TODO...
@@ -169,7 +169,7 @@ class GazeboConnection():
         if self.robot_namespace != "":
             robot_reset_request.model_state.model_name = self.robot_namespace
         else:
-            robot_reset_request.model_state.model_name = "robot"
+            rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: robot_namespace is not defined!")
 
         robot_reset_request.model_state.pose.position.x = self.initial_pose["x_init"]
         robot_reset_request.model_state.pose.position.y = self.initial_pose["y_init"]
@@ -185,7 +185,7 @@ class GazeboConnection():
             self.reset_robot(robot_reset_request)
 
         except rospy.ServiceException as e:
-            rospy.logdebug("gazebo_connection::resetRobot -> /gazebo/set_model_state service call failed")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
 
     '''
     DESCRIPTION: TODO...
@@ -195,10 +195,10 @@ class GazeboConnection():
         self.resetSim()
 
         if self.start_init_physics_parameters:
-            rospy.logdebug("gazebo_connection::init_values -> Initialising Simulation Physics Parameters")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::init_values] Initialising Simulation Physics Parameters")
             self.init_physics_parameters()
         else:
-            rospy.logdebug("gazebo_connection::init_values -> NOT Initialising Simulation Physics Parameters")
+            rospy.logdebug("[gazebo_connection::GazeboConnection::init_values] ERROR: Not Initialising Simulation Physics Parameters!")
 
     '''
     DESCRIPTION: TODO...We initialise the physics parameters of the simulation, like gravity,
@@ -244,7 +244,7 @@ class GazeboConnection():
         rospy.logdebug(str(set_physics_request.gravity))
 
         result = self.set_physics(set_physics_request)
-        rospy.logdebug("gazebo_connection::update_gravity_call -> Gravity Update Result==" + str(result.success) + ",message==" + str(result.status_message))
+        rospy.logdebug("[gazebo_connection::GazeboConnection::update_gravity_call] Gravity Update Result==" + str(result.success) + ",message==" + str(result.status_message))
 
         self.unpauseSim()
 

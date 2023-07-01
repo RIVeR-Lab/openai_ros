@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2022.03.11
+LAST UPDATE: 2023.06.30
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -35,8 +35,8 @@ class RobotGazeboEnv(gym.Env):
     '''
     def __init__(self, robot_namespace, controllers_list, reset_controls, start_init_physics_parameters=False, reset_world_or_sim="ROBOT", initial_pose={}):
 
-        rospy.logdebug("robot_gazebo_env::__init__ -> START...")
-        #print("robot_gazebo_env::__init__ -> START...")
+        rospy.logdebug("[robot_gazebo_env::RobotGazeboEnv::__init__] START")
+        print("[robot_gazebo_env::RobotGazeboEnv::__init__] START")
         
         self.initial_pose = initial_pose
         self.gazebo = GazeboConnection(start_init_physics_parameters, reset_world_or_sim, robot_namespace=robot_namespace, initial_pose=self.initial_pose)
@@ -59,11 +59,12 @@ class RobotGazeboEnv(gym.Env):
         and need to be reseted to work properly.
         """
         self.gazebo.unpauseSim()
+        print("[robot_gazebo_env::RobotGazeboEnv::__init__] BEFORE reset_controllers")
         if self.reset_controls:
             self.controllers_object.reset_controllers()
 
-        rospy.logdebug("robot_gazebo_env::__init__ -> END")
-        #print("robot_gazebo_env::__init__ -> END")
+        rospy.logdebug("[robot_gazebo_env::RobotGazeboEnv::__init__] END")
+        print("[robot_gazebo_env::RobotGazeboEnv::__init__] END")
 
     # Env methods
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.06.28
+LAST UPDATE: 2023.06.30
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -62,21 +62,28 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         
         Args:
     '''
-    def __init__(self, robot_namespace="", initial_pose={}, data_folder_path="", velocity_control_msg=""):
+    def __init__(self, initial_pose={}):
 
-        # NUA TODO: This following required if SubprocVecEnv is used! 
+        # NUA NOTE: This following required if SubprocVecEnv is used! 
         #rospy.init_node('robot_env_' + str(robot_namespace), anonymous=True, log_level=rospy.ERROR)
 
-        rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::__init__] START...")
-        #print("jackal_jaco_env::JackalJacoEnv::__init__ -> START...")
+        rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::__init__] START")
+        #print("[jackal_jaco_env::JackalJacoEnv::__init__] START")
 
         self.controllers_list = ["imu"]
-        self.robot_namespace = robot_namespace
+
+        self.gazebo_robot_name = rospy.get_param('gazebo_robot_name', "")
+        self.odom_msg_name = rospy.get_param('odom_msg_name', "")
+        self.cmd_velocity_msg_name = rospy.get_param('cmd_velocity_msg_name', "")
+
+        #print("[jackal_jaco_env::JackalJacoEnv::__init__] gazebo_robot_name: " + str(self.gazebo_robot_name))
+        #print("[jackal_jaco_env::JackalJacoEnv::__init__] odom_msg_name: " + str(self.odom_msg_name))
+        #print("[jackal_jaco_env::JackalJacoEnv::__init__] cmd_velocity_msg_name: " + str(self.cmd_velocity_msg_name))
 
         self.initial_pose = initial_pose
         # We launch the init function of the Parent Class robot_gazebo_env.RobotGazeboEnv
         super(JackalJacoEnv, self).__init__(controllers_list=self.controllers_list,
-                                            robot_namespace=self.robot_namespace,
+                                            robot_namespace=self.gazebo_robot_name,
                                             reset_controls=False,
                                             start_init_physics_parameters=False,
                                             initial_pose=self.initial_pose)
@@ -86,25 +93,26 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self._check_all_sensors_ready()
 
         # We Start all the ROS related Subscribers and publishers
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/odom", Odometry, self._odom_callback)
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/imu", Imu, self._imu_callback)
-        rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self._laser_scan_callback)
+        rospy.Subscriber(self.odom_msg_name, Odometry, self._odom_callback)
+        #rospy.Subscriber("/" + str(self.robot_namespace) + "/imu", Imu, self._imu_callback)
+        #rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self._laser_scan_callback)
         #rospy.Subscriber("/camera/depth/image_raw", Image, self._camera_depth_image_raw_callback)
         #rospy.Subscriber("/camera/depth/points", PointCloud2, self._camera_depth_points_callback)
         #rospy.Subscriber("/camera/rgb/image_raw", Image, self._camera_rgb_image_raw_callback)
 
-        if velocity_control_msg:
-            self._cmd_vel_pub = rospy.Publisher(velocity_control_msg, Twist, queue_size=1)
-
+        print("[jackal_jaco_env::JackalJacoEnv::__init__] BEFORE self.cmd_velocity_msg_name")
+        if self.cmd_velocity_msg_name:
+            self._cmd_vel_pub = rospy.Publisher(self.cmd_velocity_msg_name, Twist, queue_size=1)
         else:    
-            self._cmd_vel_pub = rospy.Publisher("/" + str(self.robot_namespace) + '/cmd_vel', Twist, queue_size=1)
+            rospy.logerr("[jackal_jaco_env::JackalJacoEnv::__init__] ERROR: cmd_velocity_msg_name is not defined!")
 
+        print("[jackal_jaco_env::JackalJacoEnv::__init__] BEFORE _check_publishers_connection")
         self._check_publishers_connection()
 
         self.gazebo.pauseSim()
 
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::__init__] END")
-        #print("jackal_jaco_env::JackalJacoEnv::__init__ -> END")
+        #print("[jackal_jaco_env::JackalJacoEnv::__init__] END")
 
     # Methods needed by the RobotGazeboEnv
     # ----------------------------
@@ -117,7 +125,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self._check_all_sensors_ready()
         return True
 
-    # TurtleBot3 Env virtual methods
+    # Virtual methods
     # ----------------------------
 
     '''
@@ -125,7 +133,8 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
     '''
     def _check_all_sensors_ready(self):
         
-        rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] START...")
+        #print("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] START")
+        rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] START")
         self._check_odom_ready()
         #self._check_imu_ready()
         #self._check_laser_scan_ready()
@@ -133,6 +142,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         #self._check_camera_depth_points_ready()
         #self._check_camera_rgb_image_raw_ready()
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] END")
+        #print("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] END")
 
     '''
     DESCRIPTION: TODO...
@@ -140,11 +150,12 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
     def _check_odom_ready(self):
 
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] Waiting to be READY...")
+        rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] odom_msg_name: " + str(self.odom_msg_name))
 
         self.odom = None
         while self.odom is None and not rospy.is_shutdown():
             try:
-                self.odom = rospy.wait_for_message("/" + str(self.robot_namespace) + "/odom", Odometry, timeout=1.0)
+                self.odom = rospy.wait_for_message(self.odom_msg_name, Odometry, timeout=1.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] READY!")
 
             except:
@@ -280,9 +291,10 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
     ''' 
     def _check_publishers_connection(self):
 
-        rate = rospy.Rate(50)  # 10hz
+        rate = rospy.Rate(50)
         while self._cmd_vel_pub.get_num_connections() == 0 and not rospy.is_shutdown():
             rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] No subscribers to cmd_vel_pub yet so we wait and try again")
+            #print("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] No subscribers to cmd_vel_pub yet so we wait and try again")
             try:
                 rate.sleep()
             except rospy.ROSInterruptException:
@@ -290,6 +302,8 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
                 pass
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] cmd_vel_pub Publisher Connected")
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] All Publishers READY")
+        #print("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] cmd_vel_pub Publisher Connected")
+        #print("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] All Publishers READY")
 
     # Methods that the TrainingEnvironment will need to define here as virtual
     # because they will be used in RobotGazeboEnv GrandParentClass and defined in the

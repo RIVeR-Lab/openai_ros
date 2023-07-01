@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.06.28
+LAST UPDATE: 2023.06.30
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -64,15 +64,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def __init__(self, robot_id=0, data_folder_path=""):
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__ ] START")
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__ ] data_folder_path: " + str(data_folder_path))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] data_folder_path: " + str(data_folder_path))
 
         ### Initialize Parameters
 
         ## General
         self.robot_id = robot_id
         self.previous_robot_id = self.robot_id
-        self.robot_namespace = "jackal_jaco_" + str(self.robot_id)
+        #self.robot_namespace = "jackal_jaco_" + str(self.robot_id)
         self.data_folder_path = data_folder_path
         self.world_name = rospy.get_param('world_name', "")
         self.next_world_name = self.world_name
@@ -83,8 +83,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.step_reward = 0.0
         self.episode_reward = 0.0
         self.total_mean_episode_reward = 0.0
-        self.goal_reaching_status = Bool()
-        self.goal_reaching_status.data = False
+        self.goal_status = Bool()
+        self.goal_status.data = False
         self.action_counter = 0
         self.observation_counter = 0
         self.odom_dict = {}
@@ -147,20 +147,25 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             # self.srv_clear_costmap = rospy.ServiceProxy('/move_base/clear_costmaps', Empty, True)
         '''
 
-        ### NUA TODO: LEFT HERE!!!!!!!!!
-
         # Publishers
-        self.goal_reaching_status_pub = rospy.Publisher(self.robot_namespace + '/goal_reaching_status', Bool, queue_size=1)
-        self.goal_visu_pub = rospy.Publisher(self.robot_namespace + '/nav_goal', MarkerArray, queue_size=1)
+        goal_status_msg_name = rospy.get_param('goal_status_msg_name', "")
+        goal_visu_msg_name = rospy.get_param('goal_visu_msg_name', "")
+        self.goal_status_pub = rospy.Publisher(goal_status_msg_name, Bool, queue_size=1)
+        self.goal_visu_pub = rospy.Publisher(goal_visu_msg_name, MarkerArray, queue_size=1)
         #self.filtered_laser_pub = rospy.Publisher(self.robot_namespace + '/laser/scan_filtered', LaserScan, queue_size=1)
         self.debug_visu_pub = rospy.Publisher('/debug_visu', MarkerArray, queue_size=1)
 
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] BEFORE get_init_pose")
         # Initialize OpenAI Gym Structure
         self.get_init_pose(init_flag=False)
 
-        super(JackalJacoMobimanDRL, self).__init__(robot_namespace=self.robot_namespace, initial_pose=self.initial_pose, data_folder_path=data_folder_path)
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] BEFORE super")
+        super(JackalJacoMobimanDRL, self).__init__(initial_pose=self.initial_pose)
 
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] BEFORE get_goal_location")
         self.get_goal_location()
+
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] BEFORE init_observation_action_space")
         self.init_observation_action_space()
 
         #print("turtlebot3_tentabot_drl::__init__ -> obs laser shape: " + str(self.obs["laser"].shape))
@@ -169,11 +174,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.reward_range = (-np.inf, np.inf)
         self.init_flag = True
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__ ] DEBUG INF")
+        ### NUA NOTE: LEFT HERE!!!
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] DEBUG INF")
         while 1:
             continue
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__ ] END")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] END")
 
     '''
     DESCRIPTION: TODO...Sets the Robot in its init pose
@@ -194,7 +200,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def _init_env_variables(self):
 
-        #print("turtlebot3_tentabot_drl::_init_env_variables -> self.total_step_num: " + str(self.total_step_num))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] self.total_step_num: " + str(self.total_step_num))
 
         if self.episode_num:
             #self.total_mean_episode_reward = round((self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num, self.config.mantissa_precision)
@@ -204,13 +210,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.training_data.append([self.episode_reward])
 
         print("--------------")
-        print("turtlebot3_tentabot_drl::_init_env_variables -> robot_id: {}".format(self.robot_id))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> step_num: {}".format(self.step_num))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> total_step_num: {}".format(self.total_step_num))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> episode_num: {}".format(self.episode_num))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> total_collisions: {}".format(self.total_collisions))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> episode_reward: {}".format(self.episode_reward))
-        print("turtlebot3_tentabot_drl::_init_env_variables -> total_mean_episode_reward: {}".format(self.total_mean_episode_reward))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] robot_id: {}".format(self.robot_id))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] step_num: {}".format(self.step_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_step_num: {}".format(self.total_step_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] episode_num: {}".format(self.episode_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_collisions: {}".format(self.total_collisions))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] episode_reward: {}".format(self.episode_reward))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_mean_episode_reward: {}".format(self.total_mean_episode_reward))
         print("--------------")
 
         self.previous_robot_id = self.robot_id
@@ -220,10 +226,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.step_num = 0
 
         '''
-        print("turtlebot3_tentabot_drl::_init_env_variables -> BEFORE client_reset_map_utility")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] BEFORE client_reset_map_utility")
         # Reset Map
         success_reset_map_utility = self.client_reset_map_utility()
-        print("turtlebot3_tentabot_drl::_init_env_variables -> AFTER client_reset_map_utility")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] AFTER client_reset_map_utility")
         '''
 
         # We wait a small ammount of time to start everything because in very fast resets, laser scan values are sluggish
@@ -314,8 +320,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if self._episode_done and (not self._reached_goal):
 
             self.step_reward = self.config.penalty_terminal_fail
-            self.goal_reaching_status.data = False
-            self.goal_reaching_status_pub.publish(self.goal_reaching_status)
+            self.goal_status.data = False
+            self.goal_status_pub.publish(self.goal_status)
 
             # Update initial pose and goal for the next episode
             self.get_init_pose()
@@ -325,8 +331,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             #self.step_reward = self.config.reward_terminal_success + self.config.reward_terminal_mintime * (self.config.max_episode_steps - self.step_num) / self.config.max_episode_steps
             self.step_reward = self.config.reward_terminal_success
-            self.goal_reaching_status.data = True
-            self.goal_reaching_status_pub.publish(self.goal_reaching_status)
+            self.goal_status.data = True
+            self.goal_status_pub.publish(self.goal_status)
 
             # Update initial pose and goal for the next episode
             self.get_init_pose()
@@ -404,7 +410,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #print("turtlebot3_tentabot_drl::save_oar_data -> episode_oar_data obs len: " + str(len(self.episode_oar_data['obs'])))
             #print("turtlebot3_tentabot_drl::save_oar_data -> episode_oar_data acts len: " + str(len(self.episode_oar_data['acts'])))
 
-            if self.goal_reaching_status.data:
+            if self.goal_status.data:
                 info_data = np.ones(len(self.episode_oar_data['acts']))
             else:
                 info_data = np.zeros(len(self.episode_oar_data['acts']))
@@ -647,13 +653,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         robot0_init_yaw = 0.0
         self.world_name = self.next_world_name
 
-        if self.world_name == "training_garden_static_0":
+        if self.world_name == "conveyor":
 
             initial_pose_areas_x = []
-            initial_pose_areas_x.extend(([-0.5,0.5], [1.5,2.5], [-2.5,-1], [-2.5,0.5]))
+            initial_pose_areas_x.extend(([-2.0,2.0], [-2.0,2.0], [-2.0,-2.0], [-2.0,2.0]))
 
             initial_pose_areas_y = []
-            initial_pose_areas_y.extend(([-0.5,0.5], [0.5,1.5], [1,1.5], [-1.5,-1]))
+            initial_pose_areas_y.extend(([-0.0,1.0], [-0.0,2.0], [-0.0,2.0], [-0.0,2.0]))
 
             area_idx = random.randint(0, len(initial_pose_areas_x)-1)
             self.robot_init_area_id = area_idx
@@ -662,233 +668,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.initial_pose["y_init"] = random.uniform(initial_pose_areas_y[area_idx][0], initial_pose_areas_y[area_idx][1])
             self.initial_pose["z_init"] = 0.0
             robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-
-        elif self.world_name == "training_garden_static_1":
-
-            initial_pose_areas_x = []
-            #initial_pose_areas_x.extend(([-1.5,1.5], [4.5,5.5], [-5.5,-2], [1,5], [-5.5,-3.5]))
-            initial_pose_areas_x.extend(([-1.5,0.5], [1.0,5.5], [-5.5,-3], [4.0,5.5], [-5.5,-4.5]))
-
-            initial_pose_areas_y = []
-            #initial_pose_areas_y.extend(([-1,1], [1,4.5], [3.5, 4.5], [-4,-2], [-4.5,-2]))
-            initial_pose_areas_y.extend(([0,2], [4,4.5], [4.0,4.5], [-4.5,-3.0], [-4.5,-3.5]))
-
-            area_idx = random.randint(0, len(initial_pose_areas_x)-1)
-            self.robot_init_area_id = area_idx
-
-            self.initial_pose["x_init"] = random.uniform(initial_pose_areas_x[area_idx][0], initial_pose_areas_x[area_idx][1])
-            self.initial_pose["y_init"] = random.uniform(initial_pose_areas_y[area_idx][0], initial_pose_areas_y[area_idx][1])
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-
-        elif self.world_name == "corridor":
-            self.initial_pose["x_init"] = 0.0
-            self.initial_pose["y_init"] = 0.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-
-        elif self.world_name == "training_garden_dynamic_0":
-
-            initial_pose_areas_x = []
-            initial_pose_areas_x.extend(([2,2.5], [-2,-2.5]))
-
-            initial_pose_areas_y = []
-            initial_pose_areas_y.extend(([-0.5,0.5], [-0.5,0.5]))
-
-            area_idx = random.randint(0, len(initial_pose_areas_x)-1)
-            self.robot_init_area_id = area_idx
-
-            self.initial_pose["x_init"] = random.uniform(initial_pose_areas_x[area_idx][0], initial_pose_areas_x[area_idx][1])
-            self.initial_pose["y_init"] = random.uniform(initial_pose_areas_y[area_idx][0], initial_pose_areas_y[area_idx][1])
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-
-        elif self.world_name == "training_garden_dynamic_1":
-
-            initial_pose_areas_x = []
-            initial_pose_areas_x.extend(([-2.0,-0.5], [4.5,5.5], [-5.5,-4.5], [3,5], [-5.5,-4.5]))
-
-            initial_pose_areas_y = []
-            initial_pose_areas_y.extend(([-4.0,0.0], [3.5,4.5], [4, 4.5], [-4,-1], [-4.5,-4]))
-
-            area_idx = random.randint(0, len(initial_pose_areas_x)-1)
-            self.robot_init_area_id = area_idx
-
-            self.initial_pose["x_init"] = random.uniform(initial_pose_areas_x[area_idx][0], initial_pose_areas_x[area_idx][1])
-            self.initial_pose["y_init"] = random.uniform(initial_pose_areas_y[area_idx][0], initial_pose_areas_y[area_idx][1])
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-        
-        elif self.world_name == "training_garden_dynamic_2":
-
-            initial_pose_areas_x = []
-            initial_pose_areas_x.extend(([4.5,5.5], [-5.5,-3.5], [3.0,5.0], [-5.5,-5.0], [-2.0,0.5]))
-
-            initial_pose_areas_y = []
-            initial_pose_areas_y.extend(([3.5,4.5], [3.0,4.5], [-4.5,-2], [-4.5,-2], [0.0,-0.5]))
-
-            area_idx = random.randint(0, len(initial_pose_areas_x)-1)
-            self.robot_init_area_id = area_idx
-
-            self.initial_pose["x_init"] = random.uniform(initial_pose_areas_x[area_idx][0], initial_pose_areas_x[area_idx][1])
-            self.initial_pose["y_init"] = random.uniform(initial_pose_areas_y[area_idx][0], initial_pose_areas_y[area_idx][1])
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = random.uniform(0.0, 2*math.pi)
-
-        elif self.world_name == "testing_dwarl_zigzag_static":
-
-            self.initial_pose["x_init"] = 5.0
-            self.initial_pose["y_init"] = -8.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_1":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = 3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_2":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = 3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_3":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = 3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_4":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = -4.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_5":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = -4.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_6":
-
-            self.initial_pose["x_init"] = 4.0
-            self.initial_pose["y_init"] = -4.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_7":
-
-            self.initial_pose["x_init"] = 1.0
-            self.initial_pose["y_init"] = 3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = -160*math.pi/180
-
-        elif self.world_name == "testing_lvl_8":
-
-            self.initial_pose["x_init"] = 7.0
-            self.initial_pose["y_init"] = -3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_9":
-
-            self.initial_pose["x_init"] = 7.0
-            self.initial_pose["y_init"] = -3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-
-        elif self.world_name == "testing_lvl_10":
-
-            self.initial_pose["x_init"] = 7.0
-            self.initial_pose["y_init"] = -3.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0.0
-        
-        elif self.world_name == "validation" or \
-             self.world_name == "validation_overtaking":
-
-            if self.world_name == "validation":
-                self.validation_flag = True
-
-            #self.reset_pedsim()
-            
-            self.initial_pose["x_init"] = -.25
-            self.initial_pose["y_init"] = 0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0
-
-            self.validation_ep_num += 1
-
-            if self.validation_flag and self.validation_ep_num >= self.config.max_testing_episodes:
-
-                self.next_world_name = "validation_passing"
-                self.validation_ep_num = 0
-        
-        elif self.world_name == "validation_passing":
-
-            #self.reset_pedsim()
-
-            self.initial_pose["x_init"] = 0.0
-            self.initial_pose["y_init"] = -4.0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 0
-
-            self.validation_ep_num += 1
-
-            if self.validation_flag and self.validation_ep_num >= self.config.max_testing_episodes:
-
-                self.next_world_name = "validation_crossing"
-                self.validation_ep_num = 0
-
-        elif self.world_name == "validation_crossing":
-            
-            #self.reset_pedsim()
-
-            self.initial_pose["x_init"] = -4.0
-            self.initial_pose["y_init"] = 0
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = 3.1415
-
-            self.validation_ep_num += 1
-
-            if self.validation_flag and self.validation_ep_num >= self.config.max_testing_episodes:
-
-                self.next_world_name = "museum_static"
-                self.validation_ep_num = 0
-
-        elif self.world_name == "museum_static":
-
-            self.initial_pose["x_init"] = 8
-            self.initial_pose["y_init"] = 5
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = -.785
-
-            self.validation_ep_num += 1
-
-            if self.validation_flag and self.validation_ep_num >= self.config.max_testing_episodes:
-
-                self.next_world_name = "museum_static_and_dynamic"
-                self.validation_ep_num = 0
-
-            else:
-                self.validation_ep_num += 1
-
-        elif self.world_name == "museum_static_and_dynamic":
-            
-            #self.reset_pedsim()
-
-            self.initial_pose["x_init"] = 17
-            self.initial_pose["y_init"] = 5
-            self.initial_pose["z_init"] = 0.0
-            robot0_init_yaw = -.785
 
         robot0_init_quat = Quaternion.from_euler(0, 0, robot0_init_yaw)
         self.initial_pose["x_rot_init"] = robot0_init_quat.x
@@ -896,11 +675,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.initial_pose["z_rot_init"] = robot0_init_quat.z
         self.initial_pose["w_rot_init"] = robot0_init_quat.w
 
-        #print("turtlebot3_tentabot_drl::get_init_pose -> Updated initial_pose x: " + str(self.initial_pose["x_init"]) + ", y: " + str(self.initial_pose["y_init"]))
-        rospy.logdebug("turtlebot3_tentabot_drl::get_init_pose -> Updated initial_pose x: " + str(self.initial_pose["x_init"]) + ", y: " + str(self.initial_pose["y_init"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_init_pose] Updated initial_pose x: " + str(self.initial_pose["x_init"]) + ", y: " + str(self.initial_pose["y_init"]))
+        rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_init_pose] Updated initial_pose x: " + str(self.initial_pose["x_init"]) + ", y: " + str(self.initial_pose["y_init"]))
 
         if init_flag:
-            super(TurtleBot3TentabotDRL, self).update_initial_pose(self.initial_pose)
+            super(JackalJacoMobimanDRL, self).update_initial_pose(self.initial_pose)
 
         return self.initial_pose
 
@@ -911,13 +690,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         self.goal_pose = {}
 
-        if self.world_name == "training_garden_static_0":
+        if self.world_name == "conveyor":
 
             goal_areas_x = []
-            goal_areas_x.extend(([-0.5,0.5], [1.5,2.5], [-2.5,-1], [-2.5,0.5]))
+            goal_areas_x.extend(([-2.0,2.0], [-2.0,2.0], [-2.0,2.0], [-2.0,2.0]))
 
             goal_areas_y = []
-            goal_areas_y.extend(([-0.5,0.5], [0.5,1.5], [1,1.5], [-1.5,-1]))
+            goal_areas_y.extend(([-2.5,-2.0], [-2.5,-2.0], [-2.5,-2.0], [-2.5,-2.0]))
 
             area_idx = random.randint(0, len(goal_areas_x)-1)
             while self.robot_init_area_id == area_idx:
@@ -926,183 +705,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.goal_pose["x"] = random.uniform(goal_areas_x[area_idx][0], goal_areas_x[area_idx][1])
             self.goal_pose["y"] = random.uniform(goal_areas_y[area_idx][0], goal_areas_y[area_idx][1])
             self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "training_garden_static_1":
-
-            goal_areas_x = []
-            #goal_areas_x.extend(([-1.5,1.5], [4.5,5.5], [-5.5,-2], [1,5], [-5.5,-3.5]))
-            goal_areas_x.extend(([-1.5,0.5], [1.0,5.5], [-5.5,-3], [4.0,5.5], [-5.5,-4.5]))
-
-            goal_areas_y = []
-            #goal_areas_y.extend(([-1,1], [1,4.5], [3.5, 4.5], [-4,-2], [-4.5,-2]))
-            goal_areas_y.extend(([0,2], [4,4.5], [4.0,4.5], [-4.5,-3.0], [-4.5,-3.5]))
-
-            area_idx = random.randint(0, len(goal_areas_x)-1)
-            while self.robot_init_area_id == area_idx:
-                area_idx = random.randint(0, len(goal_areas_x)-1)
-
-            self.goal_pose["x"] = random.uniform(goal_areas_x[area_idx][0], goal_areas_x[area_idx][1])
-            self.goal_pose["y"] = random.uniform(goal_areas_y[area_idx][0], goal_areas_y[area_idx][1])
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "corridor":
-
-            self.goal_pose["x"] = 0.0
-            self.goal_pose["y"] = 7.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "training_garden_dynamic_0":
-
-            goal_areas_x = []
-            goal_areas_x.extend(([2,2.5], [-2,-2.5]))
-
-            goal_areas_y = []
-            goal_areas_y.extend(([-0.5,0.5], [-0.5,0.5]))
-
-            area_idx = random.randint(0, len(goal_areas_x)-1)
-            while self.robot_init_area_id == area_idx:
-                area_idx = random.randint(0, len(goal_areas_x)-1)
-
-            self.goal_pose["x"] = random.uniform(goal_areas_x[area_idx][0], goal_areas_x[area_idx][1])
-            self.goal_pose["y"] = random.uniform(goal_areas_y[area_idx][0], goal_areas_y[area_idx][1])
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "training_garden_dynamic_1":
-
-            goal_areas_x = []
-            goal_areas_x.extend(([-2.0,-0.5], [4.5,5.5], [-5.5,-4.5], [3,5], [-5.5,-4.5]))
-
-            goal_areas_y = []
-            goal_areas_y.extend(([-4.0,0.0], [3.5,4.5], [4, 4.5], [-4,-1], [-4.5,-4]))
-
-            area_idx = random.randint(0, len(goal_areas_x)-1)
-            while self.robot_init_area_id == area_idx:
-                area_idx = random.randint(0, len(goal_areas_x)-1)
-
-            self.goal_pose["x"] = random.uniform(goal_areas_x[area_idx][0], goal_areas_x[area_idx][1])
-            self.goal_pose["y"] = random.uniform(goal_areas_y[area_idx][0], goal_areas_y[area_idx][1])
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "training_garden_dynamic_2":
-
-            goal_areas_x = []
-            goal_areas_x.extend(([4.5,5.5], [-5.5,-3.5], [3.0,5.0], [-5.5,-5.0], [-2.0,0.5]))
-
-            goal_areas_y = []
-            goal_areas_y.extend(([3.5,4.5], [3.0,4.5], [-4.5,-2], [-4.5,-2], [0.0,-0.5]))
-
-            area_idx = random.randint(0, len(goal_areas_x)-1)
-            while self.robot_init_area_id == area_idx:
-                area_idx = random.randint(0, len(goal_areas_x)-1)
-
-            self.goal_pose["x"] = random.uniform(goal_areas_x[area_idx][0], goal_areas_x[area_idx][1])
-            self.goal_pose["y"] = random.uniform(goal_areas_y[area_idx][0], goal_areas_y[area_idx][1])
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_dwarl_zigzag_static":
-
-            self.goal_pose["x"] = -11.0
-            self.goal_pose["y"] = 8.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_1":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = -1.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_2":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = -1.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_3":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = -1.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_4":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 2.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_5":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 2.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_6":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 2.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_7":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 2.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_8":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 3.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_9":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 3.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "testing_lvl_10":
-
-            self.goal_pose["x"] = -4.0
-            self.goal_pose["y"] = 3.0
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "validation" or \
-             self.world_name == "validation_overtaking":
-
-            self.goal_pose["x"] = 5.5
-            self.goal_pose["y"] = 0
-            self.goal_pose["z"] = 0.0
-        
-        elif self.world_name == "validation_passing":
-
-            self.goal_pose["x"] = 5.5
-            self.goal_pose["y"] = -4
-            self.goal_pose["z"] = 0.0
-        
-        elif self.world_name == "validation_crossing":
-
-            self.goal_pose["x"] = -9.5
-            self.goal_pose["y"] = 0.0
-            self.goal_pose["z"] = 0.0
-        
-        elif self.world_name == "museum_static":
-
-            self.goal_pose["x"] = 14
-            self.goal_pose["y"] = -5
-            self.goal_pose["z"] = 0.0
-
-        elif self.world_name == "museum_static_and_dynamic":
-
-            self.goal_pose["x"] = 24
-            self.goal_pose["y"] = -6
-            self.goal_pose["z"] = 0.0
-
-        if  self.config.observation_space_type == "Tentabot_FC" or \
-            self.config.observation_space_type == "Tentabot_1DCNN_FC" or \
-            self.config.observation_space_type == "Tentabot_2DCNN_FC" or \
-            self.config.observation_space_type == "Tentabot_2DCNN" or \
-            self.config.observation_space_type == "Tentabot_WP_FC":
-        
-            self.client_update_goal()
 
         self.config.set_goal(self.goal_pose)
         self.publish_goal()

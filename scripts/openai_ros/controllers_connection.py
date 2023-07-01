@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
 
+#!/usr/bin/env python3
+
+'''
+LAST UPDATE: 2023.06.30
+
+AUTHOR:     OPENAI_ROS
+            Neset Unver Akmandor (NUA)
+
+E-MAIL: akmandor.n@northeastern.edu
+
+DESCRIPTION: TODO...
+
+REFERENCES:
+[1] 
+
+NUA TODO:
+'''
+
 import rospy
 import time
 from controller_manager_msgs.srv import SwitchController, SwitchControllerRequest, SwitchControllerResponse
@@ -8,12 +26,12 @@ class ControllersConnection():
     
     def __init__(self, namespace, controllers_list):
 
-        rospy.logwarn("Start Init ControllersConnection")
+        rospy.logwarn("[controllers_connection::ControllersConnection::__init__] START")
         self.controllers_list = controllers_list
         self.switch_service_name = '/controller_manager/switch_controller'
         # self.switch_service_name = '/'+namespace+'/controller_manager/switch_controller'
         self.switch_service = rospy.ServiceProxy(self.switch_service_name, SwitchController)
-        rospy.logwarn("END Init ControllersConnection")
+        rospy.logwarn("[controllers_connection::ControllersConnection::__init__] END")
 
     def switch_controllers(self, controllers_on, controllers_off, strictness=1):
         """
@@ -55,6 +73,9 @@ class ControllersConnection():
         :param controllers_reset: ["name_controler_1", "name_controller2",...,"name_controller_n"]
         :return:
         """
+
+        print("[controllers_connection::ControllersConnection::reset_controllers] START")
+
         reset_result = False
 
         result_off_ok = self.switch_controllers(controllers_on = [],
@@ -73,6 +94,8 @@ class ControllersConnection():
                 rospy.logdebug("result_on_ok==>" + str(result_on_ok))
         else:
             rospy.logdebug("result_off_ok==>" + str(result_off_ok))
+
+        print("[controllers_connection::ControllersConnection::reset_controllers] END")
 
         return reset_result
 
