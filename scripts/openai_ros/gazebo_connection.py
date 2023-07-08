@@ -40,7 +40,8 @@ class GazeboConnection():
         self.reset_world_proxy = rospy.ServiceProxy('/gazebo/reset_world', Empty)
         self.reset_robot = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
         self.robot_namespace = robot_namespace
-        self.initial_pose = initial_pose
+        self.initial_pose = {}
+        self.update_initial_pose(initial_pose)
 
         # Setup the Gravity Controle system
         service_name = '/gazebo/set_physics_properties'
@@ -263,4 +264,10 @@ class GazeboConnection():
     value.
     '''
     def update_initial_pose(self, initial_pose):
-        self.initial_pose = initial_pose
+        self.initial_pose["x_init"] = initial_pose["x"]
+        self.initial_pose["y_init"] = initial_pose["y"]
+        self.initial_pose["z_init"] = initial_pose["z"]
+        self.initial_pose["x_rot_init"] = initial_pose["qx"]
+        self.initial_pose["y_rot_init"] = initial_pose["qy"]
+        self.initial_pose["z_rot_init"] = initial_pose["qz"]
+        self.initial_pose["w_rot_init"] = initial_pose["qw"]

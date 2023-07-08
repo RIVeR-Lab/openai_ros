@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.06.30
+LAST UPDATE: 2023.07.06
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -28,13 +28,13 @@ from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
-from openai_ros import robot_gazebo_env
+from openai_ros.robot_gazebo_env import RobotGazeboEnv
 #from openai_ros.openai_ros_common import ROSLauncher
 
 '''
 DESCRIPTION: TODO...Superclass for all CubeSingleDisk environments.
 '''
-class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
+class JackalJacoEnv(RobotGazeboEnv):
 
     '''
     DESCRIPTION: TODO...
@@ -74,6 +74,11 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
 
         self.gazebo_robot_name = rospy.get_param('gazebo_robot_name', "")
         self.odom_msg_name = rospy.get_param('odom_msg_name', "")
+        self.imu_msg_name = rospy.get_param('imu_msg_name', "")
+        self.laser_scan_msg_name = rospy.get_param('laser_scan_msg_name', "")
+        self.cam_depth_image_msg_name = rospy.get_param('cam_depth_image_msg_name', "")
+        self.cam_depth_pc2_msg_name = rospy.get_param('cam_depth_pc2_msg_name', "")
+        self.cam_rgb_image_msg_name = rospy.get_param('cam_rgb_image_msg_name', "")
         self.cmd_velocity_msg_name = rospy.get_param('cmd_velocity_msg_name', "")
 
         #print("[jackal_jaco_env::JackalJacoEnv::__init__] gazebo_robot_name: " + str(self.gazebo_robot_name))
@@ -93,7 +98,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self._check_all_sensors_ready()
 
         # We Start all the ROS related Subscribers and publishers
-        rospy.Subscriber(self.odom_msg_name, Odometry, self._odom_callback)
+        #rospy.Subscriber(self.odom_msg_name, Odometry, self._odom_callback)
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/imu", Imu, self._imu_callback)
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/scan", LaserScan, self._laser_scan_callback)
         #rospy.Subscriber("/camera/depth/image_raw", Image, self._camera_depth_image_raw_callback)
@@ -121,7 +126,6 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
     DESCRIPTION: TODO...Checks that all the sensors, publishers and other simulation systems are operational.
     '''
     def _check_all_systems_ready(self):
-
         self._check_all_sensors_ready()
         return True
 
@@ -135,7 +139,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         
         #print("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] START")
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_all_sensors_ready] START")
-        self._check_odom_ready()
+        #self._check_odom_ready()
         #self._check_imu_ready()
         #self._check_laser_scan_ready()
         #self._check_camera_depth_image_raw_ready()
@@ -157,11 +161,10 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
             try:
                 self.odom = rospy.wait_for_message(self.odom_msg_name, Odometry, timeout=1.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] READY!")
-
             except:
                 rospy.logerr("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] Not ready yet, retrying...")
 
-        return self.odom
+        return True
 
     '''
     DESCRIPTION: TODO...
@@ -173,7 +176,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self.imu = None
         while self.imu is None and not rospy.is_shutdown():
             try:
-                self.imu = rospy.wait_for_message("/" + str(self.robot_namespace) + "/imu", Imu, timeout=1.0)
+                self.imu = rospy.wait_for_message(self.imu_msg_name, Imu, timeout=1.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_imu_ready] READY!")
 
             except:
@@ -191,7 +194,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self.laser_scan = None
         while self.laser_scan is None and not rospy.is_shutdown():
             try:
-                self.laser_scan = rospy.wait_for_message("/" + str(self.robot_namespace) + "/scan", LaserScan, timeout=1.0)
+                self.laser_scan = rospy.wait_for_message(self.laser_scan_msg_name, LaserScan, timeout=1.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_laser_scan_ready] READY!")
 
             except:
@@ -208,7 +211,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self.camera_depth_image_raw = None
         while self.camera_depth_image_raw is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/image_raw", Image, timeout=5.0)
+                self.camera_depth_image_raw = rospy.wait_for_message(self.cam_depth_image_msg_name, Image, timeout=5.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_depth_image_raw_ready] READY!")
 
             except:
@@ -225,7 +228,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self.camera_depth_points = None
         while self.camera_depth_points is None and not rospy.is_shutdown():
             try:
-                self.camera_depth_points = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/depth/points", PointCloud2, timeout=5.0)
+                self.camera_depth_points = rospy.wait_for_message(self.cam_depth_pc2_msg_name, PointCloud2, timeout=5.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_depth_points_ready] READY!")
 
             except:
@@ -242,7 +245,7 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
         self.camera_rgb_image_raw = None
         while self.camera_rgb_image_raw is None and not rospy.is_shutdown():
             try:
-                self.camera_rgb_image_raw = rospy.wait_for_message("/" + str(self.robot_namespace) + "/camera/rgb/image_raw", Image, timeout=5.0)
+                self.camera_rgb_image_raw = rospy.wait_for_message(self.cam_rgb_image_msg_name, Image, timeout=5.0)
                 rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_rgb_image_raw_ready] READY!")
 
             except:
@@ -431,8 +434,8 @@ class JackalJacoEnv(robot_gazebo_env.RobotGazeboEnv):
     '''
     DESCRIPTION: TODO...
     ''' 
-    def get_odom(self):
-        return self.odom
+    def get_odom(self) -> Odometry:
+        return self.odom # type: ignore
 
     '''
     DESCRIPTION: TODO...

@@ -302,6 +302,7 @@ def RegisterOpenAI_Ros_Env(task_env, robot_id=0, max_episode_steps=10000, data_f
             id=task_env,
             entry_point="openai_ros.task_envs.jackal_jaco.jackal_jaco_mobiman_drl:JackalJacoMobimanDRL",
             max_episode_steps=max_episode_steps,
+            kwargs={'robot_id': robot_id, 'data_folder_path': data_folder_path},
         )
         from openai_ros.task_envs.jackal_jaco import jackal_jaco_mobiman_drl
 
