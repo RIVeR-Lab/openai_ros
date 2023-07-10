@@ -63,7 +63,6 @@ class JackalJacoEnv(RobotGazeboEnv):
         Args:
     '''
     def __init__(self, initial_pose={}):
-
         # NUA NOTE: This following required if SubprocVecEnv is used! 
         #rospy.init_node('robot_env_' + str(robot_namespace), anonymous=True, log_level=rospy.ERROR)
 
@@ -152,7 +151,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_odom_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] Waiting to be READY...")
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_odom_ready] odom_msg_name: " + str(self.odom_msg_name))
 
@@ -170,7 +168,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_imu_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_imu_ready] Waiting to be READY...")
 
         self.imu = None
@@ -188,7 +185,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_laser_scan_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_laser_scan_ready] Waiting to be READY...")
 
         self.laser_scan = None
@@ -205,7 +201,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_camera_depth_image_raw_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_depth_image_raw_ready] Waiting to be READY...")
 
         self.camera_depth_image_raw = None
@@ -222,7 +217,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_camera_depth_points_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_depth_points_ready] Waiting to be READY...")
 
         self.camera_depth_points = None
@@ -239,7 +233,6 @@ class JackalJacoEnv(RobotGazeboEnv):
     DESCRIPTION: TODO...
     '''
     def _check_camera_rgb_image_raw_ready(self):
-
         rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_camera_rgb_image_raw_ready] Waiting to be READY...")
 
         self.camera_rgb_image_raw = None
@@ -293,7 +286,6 @@ class JackalJacoEnv(RobotGazeboEnv):
                 :return:
     ''' 
     def _check_publishers_connection(self):
-
         rate = rospy.Rate(50)
         while self._cmd_vel_pub.get_num_connections() == 0 and not rospy.is_shutdown():
             rospy.logdebug("[jackal_jaco_env::JackalJacoEnv::_check_publishers_connection] No subscribers to cmd_vel_pub yet so we wait and try again")
@@ -363,7 +355,6 @@ class JackalJacoEnv(RobotGazeboEnv):
         :return: 
     ''' 
     def move_base(self, linear_speed, angular_speed, epsilon=0.05, update_rate=10):
-
         cmd_vel_value = Twist()
         cmd_vel_value.linear.x = linear_speed
         cmd_vel_value.angular.z = angular_speed
@@ -472,6 +463,5 @@ class JackalJacoEnv(RobotGazeboEnv):
     value.
     '''
     def update_initial_pose(self, initial_pose):
-
         self.initial_pose = initial_pose
         super(JackalJacoEnv, self).update_initial_pose(self.initial_pose)

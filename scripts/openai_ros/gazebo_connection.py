@@ -121,21 +121,26 @@ class GazeboConnection():
 
         if self.reset_world_or_sim == "SIMULATION":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
+            print("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
             self.resetSimulation()
 
         elif self.reset_world_or_sim == "WORLD":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] WORLD")
+            print("[gazebo_connection::GazeboConnection::resetSim] WORLD")
             self.resetWorld()
         
         elif self.reset_world_or_sim == "ROBOT":
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
+            print("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
             self.resetRobot()
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
+            print("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
         
         else:
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] ERROR: WRONG Reset Option:" + str(self.reset_world_or_sim))
+            print("[gazebo_connection::GazeboConnection::resetSim] ERROR: WRONG Reset Option:" + str(self.reset_world_or_sim))
 
     '''
     DESCRIPTION: TODO...
@@ -184,7 +189,6 @@ class GazeboConnection():
         
         try:
             self.reset_robot(robot_reset_request)
-
         except rospy.ServiceException as e:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
 

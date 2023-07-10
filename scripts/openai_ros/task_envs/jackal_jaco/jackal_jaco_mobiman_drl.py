@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.07.07
+LAST UPDATE: 2023.07.10
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -66,8 +66,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def __init__(self, robot_id=0, data_folder_path=""):
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] START")
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] data_folder_path: " + str(data_folder_path))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] data_folder_path: " + str(data_folder_path))
 
         self.listener = tf.TransformListener()
 
@@ -80,8 +80,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.init_goal_flag = False
         #self.robot_id = robot_id
         #self.previous_robot_id = self.robot_id
-        self.step_num = 0
-        self.total_step_num = 0
+        self.step_num = 1
+        self.total_step_num = 1
         self.total_collisions = 0
         self.step_reward = 0.0
         self.episode_reward = 0.0
@@ -160,7 +160,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.reward_range = (-np.inf, np.inf)
         self.init_flag = True        
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__main__] END")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] END")
 
     '''
     DESCRIPTION: TODO...Sets the Robot in its init pose NOTE: DELETE?
@@ -174,31 +174,14 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     :return:
     '''
     def _init_env_variables(self):
-
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] self.total_step_num: " + str(self.total_step_num))
-
-        if self.episode_num:
-            #self.total_mean_episode_reward = round((self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num, self.config.mantissa_precision)
-            self.total_mean_episode_reward = (self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num
-
-            ## Add training data
-            self.training_data.append([self.episode_reward])
-
-        print("--------------")
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] robot_id: {}".format(self.robot_id))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] step_num: {}".format(self.step_num))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_step_num: {}".format(self.total_step_num))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] episode_num: {}".format(self.episode_num))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_collisions: {}".format(self.total_collisions))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] episode_reward: {}".format(self.episode_reward))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_mean_episode_reward: {}".format(self.total_mean_episode_reward))
-        print("--------------")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] total_step_num: " + str(self.total_step_num))
 
         #self.previous_robot_id = self.robot_id
         self.episode_reward = 0.0
         self._episode_done = False
         self._reached_goal = False
-        self.step_num = 0
+        self.step_num = 1
 
         '''
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] BEFORE client_reset_map_utility")
@@ -207,6 +190,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] AFTER client_reset_map_utility")
         '''
 
+        self.initialize_robot_pose()
+
         # We wait a small ammount of time to start everything because in very fast resets, laser scan values are sluggish
         # and sometimes still have values from the prior position that triggered the done.
         time.sleep(1.0)
@@ -214,13 +199,14 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.update_robot_data()
         self.update_arm_data()
         self.update_goal_data()
-        #self.previous_distance2goal = self.get_distance2goal_2D()
+        self.previous_base_distance2goal = self.get_base_distance2goal_2D()
         
         #self.previous_action = np.array([[self.config.init_lateral_speed, self.config.init_angular_speed]]).reshape(self.config.fc_obs_shape)
 
         #self.update_global_path_length()
 
         self.reinit_observation()
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] END")
     
     '''
     DESCRIPTION: TODO...Here we define what sensor data defines our robots observations
@@ -229,8 +215,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     :return:
     '''
     def _get_obs(self):
-
-        #print("turtlebot3_tentabot_drl::_get_obs -> self.total_step_num: " + str(self.total_step_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] total_step_num: " + str(self.total_step_num))
 
         # Update target observation
         self.update_observation()
@@ -241,13 +227,16 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         # Check if the goal is reached
         self.check_collision()
 
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] END")
         return self.obs
 
     '''
     DESCRIPTION: TODO...
     '''
     def _set_action(self, action):
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] self.total_step_num: " + str(self.total_step_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] total_step_num: " + str(self.total_step_num))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] action: " + str(action))
         
         # Run Action Server
         #success_rl_step = self.client_rl_step(1)
@@ -263,44 +252,39 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         # We tell TurtleBot3 the linear and angular speed to set to execute
         #self.move_base(linear_speed, angular_speed, epsilon=0.05, update_rate=10)
 
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] END")
+
     '''
     DESCRIPTION: TODO...
     '''
     def _is_done(self, observations):
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] total_step_num: " + str(self.total_step_num))
 
-        #print("turtlebot3_tentabot_drl::_is_done -> self.total_step_num: " + str(self.total_step_num))
+        if self.step_num >= self.config.max_episode_steps:
+            self._episode_done = True
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Too late...")
 
         if self._episode_done and (not self._reached_goal):
-
-            rospy.logdebug("turtlebot3_tentabot_drl::_is_done -> Boooo! Episode done but not reached the goal...")
-            print("turtlebot3_tentabot_drl::_is_done -> Boooo! Episode done but not reached the goal...")
-
+            rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Boooo! Episode done but not reached the goal...")
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Boooo! Episode done but not reached the goal...")
         elif self._episode_done and self._reached_goal:
-
-            rospy.logdebug("turtlebot3_tentabot_drl::_is_done -> Gotcha! Episode done and reached the goal!")
-            print("turtlebot3_tentabot_drl::_is_done -> Gotcha! Episode done and reached the goal!")
-            
+            rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Gotcha! Episode done and reached the goal!")
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Gotcha! Episode done and reached the goal!")
         else:
+            rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Not yet bro...")
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Not yet bro...")
 
-            rospy.logdebug("turtlebot3_tentabot_drl::_is_done -> Not yet bro...")
-            #print("turtlebot3_tentabot_drl::_is_done -> Not yet bro...")
-
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] END")
         return self._episode_done
 
     '''
     DESCRIPTION: TODO...
     '''
     def _compute_reward(self, observations, done):
-
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] self.total_step_num: " + str(self.total_step_num))
-
-        self.total_step_num += 1
-        self.step_num += 1
-
-        if self.step_num >= self.config.max_episode_steps:
-
-            self._episode_done = True
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] Too late...")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] START")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] done: " + str(done))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: " + str(self.total_step_num))
 
         if self._episode_done and (not self._reached_goal):
 
@@ -308,9 +292,22 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.goal_status.data = False
             self.goal_status_pub.publish(self.goal_status)
 
-            # Update initial pose and goal for the next episode
-            self.initialize_robot_pose()
-            self.get_goal_location()
+            if self.episode_num:
+                #self.total_mean_episode_reward = round((self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num, self.config.mantissa_precision)
+                self.total_mean_episode_reward = (self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num
+
+            ## Add training data
+            self.training_data.append([self.episode_reward])
+
+            print("--------------")
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] robot_id: {}".format(self.robot_id))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_num: {}".format(self.step_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: {}".format(self.total_step_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_num: {}".format(self.episode_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_collisions: {}".format(self.total_collisions))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_reward: {}".format(self.episode_reward))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_mean_episode_reward: {}".format(self.total_mean_episode_reward))
+            print("--------------")
 
         elif self._episode_done and self._reached_goal:
 
@@ -319,9 +316,22 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.goal_status.data = True
             self.goal_status_pub.publish(self.goal_status)
 
-            # Update initial pose and goal for the next episode
-            self.initialize_robot_pose()
-            self.get_goal_location()
+            if self.episode_num:
+                #self.total_mean_episode_reward = round((self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num, self.config.mantissa_precision)
+                self.total_mean_episode_reward = (self.total_mean_episode_reward * (self.episode_num - 1) + self.episode_reward) / self.episode_num
+
+            ## Add training data
+            self.training_data.append([self.episode_reward])
+
+            print("--------------")
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] robot_id: {}".format(self.robot_id))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_num: {}".format(self.step_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: {}".format(self.total_step_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_num: {}".format(self.episode_num))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_collisions: {}".format(self.total_collisions))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_reward: {}".format(self.episode_reward))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_mean_episode_reward: {}".format(self.total_mean_episode_reward))
+            print("--------------")
 
         else:
 
@@ -335,11 +345,14 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 self.step_reward = self.config.reward_cumulative_step * (self.init_distance2goal - current_distance2goal) / (self.config.max_episode_steps * self.init_distance2goal)
             '''
 
-            current_distance2goal = self.get_distance2goal()
+            ### NUA TODO: REVIEW!!!
+            current_base_distance2goal = self.get_base_distance2goal_2D()
             penalty_step = self.config.penalty_cumulative_step / self.config.max_episode_steps
-            rp_step = self.config.reward_step_scale * (self.previous_distance2goal - current_distance2goal)
+            rp_step = self.config.reward_step_scale * (self.previous_base_distance2goal - current_base_distance2goal)
             self.step_reward = penalty_step + rp_step
-            self.previous_distance2goal = current_distance2goal
+            self.previous_base_distance2goal = current_base_distance2goal
+
+            self.step_num += 1
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
 
@@ -373,7 +386,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] max_step_reward: " + str(round(self.config.max_lateral_speed * dt, self.config.mantissa_precision)))
             print("----------------------")
             '''
-            
+        
         self.episode_reward += self.step_reward
 
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_reward: " + str(self.step_reward))
@@ -415,6 +428,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             ## Write training data
             write_data(self.config.data_folder_path + "training_data.csv", self.training_data)
 
+        self.total_step_num += 1
+
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] END")
+        print("--------------------------------------------------")
+        print("")
         return self.step_reward
 
     ################ Internal TaskEnv Methods ################
@@ -547,9 +565,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
+    '''
     def callback_move_base_global_plan(self, data):
         self.move_base_global_plan = data.poses
         self.move_base_flag = True
+    '''
 
     '''
     DESCRIPTION: TODO... Update the odometry data
@@ -619,8 +639,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO... Check if the goal is reached
     '''
     def check_goal(self):
-        current_distance2goal = self.get_distance2goal_2D()
-        if (current_distance2goal < self.config.goal_range_min):
+        distance2goal_ee = self.get_arm_distance2goal_3D()
+        if (distance2goal_ee < self.config.goal_range_min):
             self._episode_done = True
             self._reached_goal = True
 
@@ -729,13 +749,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def get_euclidean_distance_2D(self, p1, p2):
+    def get_euclidean_distance_2D(self, p1, p2={"x":0.0, "y":0.0}):
         return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)
     
     '''
     DESCRIPTION: TODO...
     '''
-    def get_euclidean_distance_3D(self, p1, p2):
+    def get_euclidean_distance_3D(self, p1, p2={"x":0.0, "y":0.0, "z":0.0}):
         return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2 + (p1["z"] - p2["z"])**2)
 
     '''
@@ -778,6 +798,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     value.
     '''
     def check_collision(self):
+        ### NUA TODO: GET THE DATA FROM SUBSCRIBED TOPIC! 
+        return False
+        '''
         laserscan_msg = self.laserscan_msg
         self.min_distance2obstacle = min(laserscan_msg.ranges)
         for scan_range in laserscan_msg.ranges:
@@ -789,6 +812,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 self._episode_done = True
                 return True
         return False
+        '''
 
     '''
     DESCRIPTION: TODO...
@@ -836,7 +860,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO...
     '''
     def init_observation_action_space(self):
-
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] START")
         self.initialize_occgrid_config()
 
         self.episode_oar_data = dict(obs=[], acts=[], infos=None, terminal=[], rews=[])
@@ -967,6 +991,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] observation_space: " + str(self.observation_space))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] action_space: " + str(self.action_space))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] END")
 
     '''
     DESCRIPTION: TODO...
@@ -982,20 +1007,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             # Get OccGrid array observation
             obs_occgrid = self.get_obs_occgrid()
 
-            print(obs_occgrid)
-            print(obs_occgrid.shape)
-
             # Get collision sphere distance observation
             obs_colspheredist = self.get_obs_colspheredist()
 
-            print(obs_colspheredist)
-            print(obs_colspheredist.shape)
-
             # Update goal observation
             obs_goal = self.get_obs_goal()
-
-            print(obs_goal)
-            print(obs_goal.shape)
 
             # Stack observation data
             self.obs_data = {   "occgrid": np.vstack([obs_occgrid] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)), # type: ignore
@@ -1026,20 +1042,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_occgrid_image = self.get_obs_occgrid(image_flag=True)
             obs_occgrid_image = np.expand_dims(obs_occgrid_image, axis=0)
 
-            print(obs_occgrid_image)
-            print(obs_occgrid_image.shape)
-
             # Get collision sphere distance observation
             obs_colspheredist = self.get_obs_colspheredist()
 
-            print(obs_colspheredist)
-            print(obs_colspheredist.shape)
-
             # Update goal observation
             obs_goal = self.get_obs_goal()
-
-            print(obs_goal)
-            print(obs_goal.shape)
 
             # Stack observation data
             self.obs_data = {   "occgrid_image": np.vstack([obs_occgrid_image] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)), # type: ignore
@@ -1077,20 +1084,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             # Get OccGrid array observation
             obs_occgrid = self.get_obs_occgrid()
 
-            print(obs_occgrid)
-            print(obs_occgrid.shape)
-
             # Get collision sphere distance observation
             obs_colspheredist = self.get_obs_colspheredist()
 
-            print(obs_colspheredist)
-            print(obs_colspheredist.shape)
-
             # Update goal observation
             obs_goal = self.get_obs_goal()
-
-            print(obs_goal)
-            print(obs_goal.shape)
 
             # Update observation data
             self.obs_data["occgrid"] = np.vstack((self.obs_data["occgrid"], obs_occgrid))
@@ -1102,100 +1100,87 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.obs_data["goal"] = np.vstack((self.obs_data["goal"], obs_goal))
             self.obs_data["goal"] = np.delete(self.obs_data["goal"], np.s_[0], axis=0)
 
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data occgrid shape: " + str(self.obs_data["occgrid"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data colspheredist shape: " + str(self.obs_data["colspheredist"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data goal shape: " + str(self.obs_data["goal"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data occgrid shape: " + str(self.obs_data["occgrid"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data colspheredist shape: " + str(self.obs_data["colspheredist"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data goal shape: " + str(self.obs_data["goal"].shape))
 
-            ### NUA NOTE: LEFT HERE!!!
             # Update observation
-            obs_stacked_occupancy = self.obs_data["occupancy"][-1,:].reshape(self.config.fc_obs_shape)
+            obs_stacked_occgrid = self.obs_data["occgrid"][-1,:].reshape(self.config.fc_obs_shape)
 
             if self.config.n_obs_stack > 1:
                 latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
                 j = 0
-                for i in range(latest_index-1, -1, -1):
+                for i in range(latest_index-1, -1, -1): # type: ignore
                     j += 1
                     if j % self.config.n_skip_obs_stack == 0:
-                        obs_stacked_occupancy = np.hstack((self.obs_data["occupancy"][i,:], obs_stacked_occupancy))
+                        obs_stacked_occgrid = np.hstack((self.obs_data["occgrid"][i,:], obs_stacked_occgrid))
 
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_stacked_occupancy shape: " + str(obs_stacked_occupancy.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_target shape: " + str(self.obs_target.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] previous_action shape: " + str(self.previous_action.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_stacked_occgrid shape: " + str(obs_stacked_occgrid.shape))
 
-            self.obs = np.concatenate((obs_stacked_occupancy, self.obs_target, self.previous_action), axis=0)
+            self.obs = np.concatenate((obs_stacked_occgrid, obs_colspheredist, obs_goal), axis=0)
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs: " + str(self.obs.shape))
 
         elif self.config.observation_space_type == "mobiman_2DCNN_FC":
 
-            # Update target observation
-            self.update_obs_target()
+            # Get OccGrid image observation
+            obs_occgrid_image = self.get_obs_occgrid(image_flag=True)
+            obs_occgrid_image = np.expand_dims(obs_occgrid_image, axis=0)
 
-            obs_laser_image = self.laser_image
-            obs_laser_image = np.expand_dims(obs_laser_image, axis=0)
+            # Get collision sphere distance observation
+            obs_colspheredist = self.get_obs_colspheredist()
 
-            obs_target = self.obs_target
+            # Update goal observation
+            obs_goal = self.get_obs_goal()
 
             # Update observation data
-            self.obs_data["laser_image"] = np.vstack((self.obs_data["laser_image"], obs_laser_image))
-            self.obs_data["laser_image"] = np.delete(self.obs_data["laser_image"], np.s_[0], axis=0)
+            self.obs_data["occgrid_image"] = np.vstack((self.obs_data["occgrid_image"], obs_occgrid_image))
+            self.obs_data["occgrid_image"] = np.delete(self.obs_data["occgrid_image"], np.s_[0], axis=0)
+
+            self.obs_data["colspheredist"] = np.vstack((self.obs_data["colspheredist"], obs_colspheredist))
+            self.obs_data["colspheredist"] = np.delete(self.obs_data["colspheredist"], np.s_[0], axis=0)
+
+            self.obs_data["goal"] = np.vstack((self.obs_data["goal"], obs_goal))
+            self.obs_data["goal"] = np.delete(self.obs_data["goal"], np.s_[0], axis=0)
 
             # Update observation
-            obs_space_laser_image = self.obs_data["laser_image"][-1,:,:]
-            obs_space_laser_image = np.expand_dims(obs_space_laser_image, axis=0)
+            obs_space_occgrid_image = self.obs_data["occgrid_image"][-1,:,:]
+            obs_space_occgrid_image = np.expand_dims(obs_space_occgrid_image, axis=0)
 
             if self.config.n_obs_stack > 1:
                 if(self.config.n_skip_obs_stack > 1):
                     latest_index = (self.config.n_obs_stack * self.config.n_skip_obs_stack) - 1
                     j = 0
-                    for i in range(latest_index-1, -1, -1):
+                    for i in range(latest_index-1, -1, -1): # type: ignore
                         j += 1
                         if j % self.config.n_skip_obs_stack == 0:
 
-                            obs_space_laser_image_current = self.obs_data["laser_image"][i,:,:]
-                            obs_space_laser_image_current = np.expand_dims(obs_space_laser_image_current, axis=0)
-                            obs_space_laser_image = np.vstack([obs_space_laser_image_current, obs_space_laser_image])
+                            obs_space_occgrid_image_current = self.obs_data["occgrid_image"][i,:,:]
+                            obs_space_occgrid_image_current = np.expand_dims(obs_space_occgrid_image_current, axis=0)
+                            obs_space_occgrid_image = np.vstack([obs_space_occgrid_image_current, obs_space_occgrid_image])
                 
                 else:
-                    obs_space_laser_image = self.obs_data["laser_image"]
+                    obs_space_occgrid_image = self.obs_data["occgrid_image"]
 
-            self.obs_data["target"] = np.vstack((self.obs_data["target"], obs_target))
-            self.obs_data["target"] = np.delete(self.obs_data["target"], np.s_[0], axis=0)
+            obs_space_colspheredist_goal = np.concatenate((obs_colspheredist, obs_goal), axis=0)
 
-            self.obs_data["action"] = np.vstack((self.obs_data["action"], self.previous_action))
-            self.obs_data["action"] = np.delete(self.obs_data["action"], np.s_[0], axis=0)
-
-            obs_space_target_action = np.concatenate((obs_target, self.previous_action), axis=0)
-
-            '''
             #print("**************** " + str(self.step_num))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data laser_image shape: " + str(self.obs_data["laser_image"].shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data target shape: " + str(self.obs_data["target"].shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data action shape: " + str(self.obs_data["action"].shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_laser_image: ")
-            #print(obs_space_laser_image[0, 65:75])
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_target dist: " + str(obs_target[0,0]))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_target angle: " + str(obs_target[0,1] * 180 / math.pi))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] previous_action: " + str(self.previous_action))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_laser_image shape: " + str(obs_laser_image.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_laser_image type: " + str(type(obs_space_laser_image)))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_laser_image shape: " + str(obs_space_laser_image.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_target_action shape: " + str(obs_space_target_action.shape))
-            print("****************")
-            '''
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data occgrid_image shape: " + str(self.obs_data["occgrid_image"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data colspheredist shape: " + str(self.obs_data["colspheredist"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data goal shape: " + str(self.obs_data["goal"].shape))
+            ##print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_laser_image: ")
+            ##print(obs_space_laser_image[0, 65:75])
+            ##print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_target dist: " + str(obs_target[0,0]))
+            ##print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_target angle: " + str(obs_target[0,1] * 180 / math.pi))
+            ##print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] previous_action: " + str(self.previous_action))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_occgrid_image shape: " + str(obs_occgrid_image.shape))
+            ##print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_laser_image type: " + str(type(obs_space_laser_image)))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_occgrid_image shape: " + str(obs_space_occgrid_image.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_space_colspheredist_goal shape: " + str(obs_space_colspheredist_goal.shape))
+            #print("****************")
 
-            '''
-            if self.step_num == 50:
-
-                imi = (self.laser_image * 255).astype(np.uint8)
-                im = Image.fromarray(imi)
-                im = im.convert("L")
-                im.save(self.data_folder_path + "laser_image_" + str(self.step_num) + ".jpeg")
-                #np.savetxt(self.data_folder_path + "laser_image_" + str(self.step_num) + ".txt", self.laser_image)
-            '''
-
-            self.obs["laser_image"] = obs_space_laser_image
-            self.obs["target_action"] = obs_space_target_action
+            self.obs["occgrid_image"] = obs_space_occgrid_image
+            self.obs["colspheredist_goal"] = obs_space_colspheredist_goal
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] END")
 
     '''
@@ -1292,6 +1277,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
+    '''
     def publish_wp_visu(self, full_data, obs_data):
 
         debug_visu = MarkerArray()
@@ -1303,7 +1289,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         marker.action = marker.DELETEALL
         debug_visu.markers.append(marker) # type: ignore
 
-        for i, d in enumerate(full_data):
+        for i,d in enumerate(full_data):
 
             marker = Marker()
             marker.header.frame_id = self.config.world_frame_name
@@ -1325,7 +1311,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             debug_visu.markers.append(marker) # type: ignore
 
-        for j, d in enumerate(obs_data):
+        for j,d in enumerate(obs_data):
 
             marker = Marker()
             marker.header.frame_id = self.config.world_frame_name
@@ -1354,6 +1340,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 m.header.stamp = rospy.Time.now()
             
             self.debug_visu_pub.publish(debug_visu) # type: ignore
+    '''
 
     '''
     DESCRIPTION: TODO...
