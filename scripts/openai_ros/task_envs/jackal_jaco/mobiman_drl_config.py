@@ -93,6 +93,7 @@ class Config():
             ## Algorithm
             self.observation_space_type = rospy.get_param('observation_space_type', "")
 
+            self.action_time_horizon = rospy.get_param("action_time_horizon", 0.0)
             self.n_action_model = rospy.get_param("n_action_model", 0.0)
             self.n_action_constraint = rospy.get_param("n_action_constraint", 0.0)
             self.n_action_target = rospy.get_param("n_action_target", 0.0)
@@ -138,6 +139,7 @@ class Config():
                 training_log_data.append(["occgrid_occ_min", self.occgrid_occ_min])
                 training_log_data.append(["occgrid_occ_max", self.occgrid_occ_max])
                 training_log_data.append(["observation_space_type", self.observation_space_type])
+                training_log_data.append(["action_time_horizon", self.action_time_horizon])
                 training_log_data.append(["n_action_model", self.n_action_model])
                 training_log_data.append(["n_action_constraint", self.n_action_constraint])
                 training_log_data.append(["n_action_target", self.n_action_target])
@@ -257,6 +259,7 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] occgrid_occ_min: " + str(self.occgrid_occ_min))
         print("[mobiman_drl_config::Config::__init__] occgrid_occ_max: " + str(self.occgrid_occ_max))
         print("[mobiman_drl_config::Config::__init__] observation_space_type: " + str(self.observation_space_type))
+        print("[mobiman_drl_config::Config::__init__] action_time_horizon: " + str(self.action_time_horizon))
         print("[mobiman_drl_config::Config::__init__] n_action_model: " + str(self.n_action_model))
         print("[mobiman_drl_config::Config::__init__] n_action_constraint: " + str(self.n_action_constraint))
         print("[mobiman_drl_config::Config::__init__] n_action_target: " + str(self.n_action_target))

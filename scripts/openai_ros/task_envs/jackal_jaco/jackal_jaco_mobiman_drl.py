@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.07.10
+LAST UPDATE: 2023.07.28
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -42,6 +42,7 @@ from nav_msgs.srv import GetPlan
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
 from octomap_msgs.msg import Octomap
+from ocs2_msgs.srv import setActionDRL
 
 from gym import spaces
 from gym.envs.registration import register
@@ -239,18 +240,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] action: " + str(action))
         
         # Run Action Server
-        #success_rl_step = self.client_rl_step(1)
-        #if not success_rl_step:
-        #    rospy.logerr("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] OBSERVATION FAILURE!")
-
-        #linear_speed = self.config.velocity_control_data[action, 0]
-        #angular_speed = float(self.config.velocity_control_data[action, 1])
-
-        #self.previous_action = np.array([[linear_speed, angular_speed]], dtype=np.float32).reshape(self.config.fc_obs_shape)
-        #self.act = action
-
-        # We tell TurtleBot3 the linear and angular speed to set to execute
-        #self.move_base(linear_speed, angular_speed, epsilon=0.05, update_rate=10)
+        self.client_set_action_drl(action, self.config.action_time_horizon)
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] END")
 
@@ -1273,6 +1263,28 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 m.header.stamp = rospy.Time.now()
             
             self.debug_visu_pub.publish(debug_visu) # type: ignore
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def client_set_action_drl(self, action, action_time_horizon):
+
+        rospy.wait_for_service('set_action_drl')
+        try:
+            srv_set_action_drl = rospy.ServiceProxy('set_action_drl', setActionDRL)            
+            success = srv_set_action_drl(action, action_time_horizon).success
+
+            if(success):
+                rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::client_set_action_drl] Updated action: " + str(action))
+            else:
+                #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::client_set_action_drl] goal_pose is NOT updated!")
+                rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::client_set_action_drl] goal_pose is NOT updated!")
+
+            return success
+
+        except rospy.ServiceException as e:  
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::client_set_action_drl] ERROR: Service call failed: %s"%e)
+            return False
 
     '''
     DESCRIPTION: TODO...
