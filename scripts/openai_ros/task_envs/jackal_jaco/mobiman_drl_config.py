@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.07.06
+LAST UPDATE: 2023.08.23
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -70,6 +70,7 @@ class Config():
         self.ee_frame_name = rospy.get_param('ee_frame_name', "")
         self.goal_frame_name = rospy.get_param('goal_frame_name', "")
         self.occgrid_msg_name = rospy.get_param('occgrid_msg_name', "")
+        self.colsphere_msg_name = rospy.get_param('colsphere_msg_name', "")
         self.goal_status_msg_name = rospy.get_param('goal_status_msg_name', "")
 
         self.data_folder_path = data_folder_path
@@ -94,10 +95,11 @@ class Config():
             self.observation_space_type = rospy.get_param('observation_space_type', "")
 
             self.action_time_horizon = rospy.get_param("action_time_horizon", 0.0)
+            self.action_type = rospy.get_param("action_type", 0)
             self.n_action_model = rospy.get_param("n_action_model", 0.0)
             self.n_action_constraint = rospy.get_param("n_action_constraint", 0.0)
             self.n_action_target = rospy.get_param("n_action_target", 0.0)
-            self.n_colsphere = rospy.get_param("n_colsphere", 0.0)
+            #self.n_colsphere = rospy.get_param("n_colsphere", 0.0)
 
             self.goal_range_min = rospy.get_param("goal_range_min", 0.0)
             self.goal_range_max = rospy.get_param('goal_range_max', 0.0)
@@ -110,8 +112,11 @@ class Config():
             self.fc_obs_shape = (-1, )
             self.cnn_obs_shape = (1,-1)
 
-            self.n_action = self.n_action_model + pow(2, self.n_action_constraint) + self.n_action_target
-            
+            if self.action_type == 0:
+                self.n_action = self.n_action_model + pow(2, self.n_action_constraint) + self.n_action_target # type: ignore
+            else:
+                self.n_action = rospy.get_param("n_action", 0.0)
+
             # Rewards
             self.reward_terminal_success = rospy.get_param('reward_terminal_success', 0.0)
             self.reward_step_scale = rospy.get_param('reward_step_scale', 0.0)
@@ -122,7 +127,7 @@ class Config():
             if data_folder_path:
 
                 ## Write all parameters
-                training_log_file = data_folder_path + self.training_log_name + ".csv"
+                training_log_file = data_folder_path + self.training_log_name + ".csv" # type: ignore
 
                 training_log_data = []
                 training_log_data.append(["mode", self.mode])
@@ -132,6 +137,7 @@ class Config():
                 training_log_data.append(["ee_frame_name", self.ee_frame_name])
                 training_log_data.append(["goal_frame_name", self.goal_frame_name])
                 training_log_data.append(["occgrid_msg_name", self.occgrid_msg_name])
+                training_log_data.append(["colsphere_msg_name", self.colsphere_msg_name])
                 training_log_data.append(["goal_status_msg_name", self.goal_status_msg_name])
                 training_log_data.append(["max_episode_steps", self.max_episode_steps])
                 training_log_data.append(["training_timesteps", self.training_timesteps])
@@ -140,10 +146,11 @@ class Config():
                 training_log_data.append(["occgrid_occ_max", self.occgrid_occ_max])
                 training_log_data.append(["observation_space_type", self.observation_space_type])
                 training_log_data.append(["action_time_horizon", self.action_time_horizon])
+                training_log_data.append(["action_type", self.action_type])
                 training_log_data.append(["n_action_model", self.n_action_model])
                 training_log_data.append(["n_action_constraint", self.n_action_constraint])
                 training_log_data.append(["n_action_target", self.n_action_target])
-                training_log_data.append(["n_colsphere", self.n_colsphere])
+                #training_log_data.append(["n_colsphere", self.n_colsphere])
                 training_log_data.append(["goal_range_min", self.goal_range_min])
                 training_log_data.append(["goal_range_max", self.goal_range_max])
                 training_log_data.append(["collision_range_min", self.collision_range_min])
@@ -251,6 +258,7 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] world_name: " + str(self.world_name))
         print("[mobiman_drl_config::Config::__init__] world_frame_name: " + str(self.world_frame_name))
         print("[mobiman_drl_config::Config::__init__] occgrid_msg_name: " + str(self.occgrid_msg_name))
+        print("[mobiman_drl_config::Config::__init__] colsphere_msg_name: " + str(self.colsphere_msg_name))
         print("[mobiman_drl_config::Config::__init__] goal_status_msg_name: " + str(self.goal_status_msg_name))
         print("[mobiman_drl_config::Config::__init__] goal_frame_name: " + str(self.goal_frame_name))
         print("[mobiman_drl_config::Config::__init__] max_episode_steps: " + str(self.max_episode_steps))
@@ -260,10 +268,11 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] occgrid_occ_max: " + str(self.occgrid_occ_max))
         print("[mobiman_drl_config::Config::__init__] observation_space_type: " + str(self.observation_space_type))
         print("[mobiman_drl_config::Config::__init__] action_time_horizon: " + str(self.action_time_horizon))
+        print("[mobiman_drl_config::Config::__init__] action_type: " + str(self.action_type))
         print("[mobiman_drl_config::Config::__init__] n_action_model: " + str(self.n_action_model))
         print("[mobiman_drl_config::Config::__init__] n_action_constraint: " + str(self.n_action_constraint))
         print("[mobiman_drl_config::Config::__init__] n_action_target: " + str(self.n_action_target))
-        print("[mobiman_drl_config::Config::__init__] n_colsphere: " + str(self.n_colsphere))
+        #print("[mobiman_drl_config::Config::__init__] n_colsphere: " + str(self.n_colsphere))
         print("[mobiman_drl_config::Config::__init__] goal_range_min: " + str(self.goal_range_min))
         print("[mobiman_drl_config::Config::__init__] goal_range_max: " + str(self.goal_range_max))
         print("[mobiman_drl_config::Config::__init__] collision_range_min: " + str(self.collision_range_min))
@@ -295,7 +304,7 @@ class Config():
         self.observation_shape = obs_shape
         training_log_data = []
         training_log_data.append(["observation_shape", self.observation_shape])
-        training_log_file = self.data_folder_path + self.training_log_name + ".csv"
+        training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
         print("[mobiman_drl_config::Config::set_occgrid_config] observation_shape: " + str(self.observation_shape))
 
@@ -306,7 +315,7 @@ class Config():
         self.action_shape = act_shape
         training_log_data = []
         training_log_data.append(["action_shape", self.action_shape])
-        training_log_file = self.data_folder_path + self.training_log_name + ".csv"
+        training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
         print("[mobiman_drl_config::Config::set_occgrid_config] action_shape: " + str(self.action_shape))
 
@@ -345,11 +354,24 @@ class Config():
         training_log_data.append(["occgrid_width", self.occgrid_width])
         training_log_data.append(["occgrid_height", self.occgrid_height])
         training_log_data.append(["occgrid_resolution", self.occgrid_resolution])
-        training_log_file = self.data_folder_path + self.training_log_name + ".csv"
+        training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
 
         print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_data_size: " + str(self.occgrid_data_size))
         print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_width: " + str(self.occgrid_width))
         print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_height: " + str(self.occgrid_height))
         print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_resolution: " + str(self.occgrid_resolution))
+
+    '''
+    NUA TODO: 
+    '''
+    def set_colsphere_config(self, n_colsphere):
+        self.n_colsphere = n_colsphere
+        training_log_data = []
+        training_log_data.append(["n_colsphere", self.n_colsphere])
+        training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
+        write_data(training_log_file, training_log_data)
+
+        print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_data_size: " + str(self.n_colsphere))
+
     
