@@ -19,7 +19,7 @@ NUA TODO:
 import rospy
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ODEPhysics
-from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest
+from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 
@@ -33,12 +33,14 @@ class GazeboConnection():
     '''
     def __init__(self, start_init_physics_parameters, reset_world_or_sim, max_retry = 20, robot_namespace='', initial_pose={}):
 
+        print("[gazebo_connection::GazeboConnection::__init__] START")
         self._max_retry = max_retry
         self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
         self.reset_simulation_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
         self.reset_world_proxy = rospy.ServiceProxy('/gazebo/reset_world', Empty)
         self.reset_robot = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+        self.reset_robot_config = rospy.ServiceProxy('/gazebo/set_model_configuration', SetModelConfiguration)
         self.robot_namespace = robot_namespace
         self.initial_pose = {}
         self.update_initial_pose(initial_pose)
@@ -55,6 +57,7 @@ class GazeboConnection():
         self.init_values()
         # We always pause the simulation, important for legged robots learning
         self.pauseSim()
+        print("[gazebo_connection::GazeboConnection::__init__] END")
 
     '''
     DESCRIPTION: TODO...
@@ -169,11 +172,16 @@ class GazeboConnection():
     DESCRIPTION: TODO...
     '''
     def resetRobot(self):
-
+        print("[gazebo_connection::GazeboConnection::resetRobot] START")
         robot_reset_request = SetModelStateRequest()
+        robot_reset_joint_request = SetModelConfigurationRequest()
+        #robot_reset_link_request = SetLinkStateRequest()
         
         if self.robot_namespace != "":
+            print("[gazebo_connection::GazeboConnection::resetRobot] self.robot_namespace: " + str(self.robot_namespace))
             robot_reset_request.model_state.model_name = self.robot_namespace
+            robot_reset_joint_request.model_name = self.robot_namespace
+            #robot_reset_link_request.link_state.
         else:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: robot_namespace is not defined!")
 
@@ -185,12 +193,52 @@ class GazeboConnection():
         robot_reset_request.model_state.pose.orientation.z = self.initial_pose["z_rot_init"]
         robot_reset_request.model_state.pose.orientation.w = self.initial_pose["w_rot_init"]
 
+        init_arm_joint_name_1 = 'j2n6s300_joint_1'
+        init_arm_joint_name_2 = 'j2n6s300_joint_2'
+        init_arm_joint_name_3 = 'j2n6s300_joint_3'
+        init_arm_joint_name_4 = 'j2n6s300_joint_4'
+        init_arm_joint_name_5 = 'j2n6s300_joint_5'
+        init_arm_joint_name_6 = 'j2n6s300_joint_6'
+
+        init_arm_joint_pos_1 = 0.0
+        init_arm_joint_pos_2 = 2.9
+        init_arm_joint_pos_3 = 1.3
+        init_arm_joint_pos_4 = 4.2
+        init_arm_joint_pos_5 = 1.4
+        init_arm_joint_pos_6 = 0.0
+
+        robot_reset_joint_request.urdf_param_name = "/robot_description"
+        robot_reset_joint_request.joint_names = ['j2n6s300_jointsdasdas_2']
+        robot_reset_joint_request.joint_positions = [2.9]
+        
+        '''
+        robot_reset_joint_request.joint_names = [init_arm_joint_name_1, 
+                                                 init_arm_joint_name_2, 
+                                                 init_arm_joint_name_3, 
+                                                 init_arm_joint_name_4, 
+                                                 init_arm_joint_name_5, 
+                                                 init_arm_joint_name_6]
+        robot_reset_joint_request.joint_positions = [init_arm_joint_pos_1,
+                                                     init_arm_joint_pos_2,
+                                                     init_arm_joint_pos_3,
+                                                     init_arm_joint_pos_4,
+                                                     init_arm_joint_pos_5,
+                                                     init_arm_joint_pos_6]
+        '''
+
         rospy.wait_for_service('/gazebo/set_model_state')
+        rospy.wait_for_service('/gazebo/set_model_configuration')
         
         try:
             self.reset_robot(robot_reset_request)
+            res = self.reset_robot_config(robot_reset_joint_request)
+            print("[gazebo_connection::GazeboConnection::resetRobot] res: " + str(res))
         except rospy.ServiceException as e:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
+
+        print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
+        while 1:
+            continue
 
     '''
     DESCRIPTION: TODO...

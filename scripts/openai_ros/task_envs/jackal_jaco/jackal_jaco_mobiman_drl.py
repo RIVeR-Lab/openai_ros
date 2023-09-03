@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.08.23
+LAST UPDATE: 2023.08.31
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -245,9 +245,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #while(!success):
         #    success = self.client_set_action_drl(action, self.config.action_time_horizon)
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting action to be completed by MPC...")
-        while not self.action_complete:
-            continue
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting self.config.action_time_horizon: " + str(self.config.action_time_horizon))
+        rospy.sleep(self.config.action_time_horizon)
+        #while not self.action_complete:
+        #    continue
 
         self.action_complete = False
 
@@ -660,8 +661,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO... Check if the goal is reached
     '''
     def check_goal(self):
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_goal] NOT IMPLEMENTED!")
         distance2goal_ee = self.get_arm_distance2goal_3D()
-        if (distance2goal_ee < self.config.goal_range_min): # type: ignore
+        if (distance2goal_ee < self.config.goal_distance_threshold): # type: ignore
             self._episode_done = True
             self._reached_goal = True
 
@@ -914,21 +916,23 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_colspheredist_max = np.full((1, self.config.n_colsphere), self.config.collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
 
             # Goal (wrt. robot)
-            obs_goal_min = np.array([[self.config.goal_range_min, 
+            # base x,y,z
+            # ee x,y,z,roll,pitch,yaw
+            obs_goal_min = np.array([[-self.config.goal_range_max_x, 
+                                      -self.config.goal_range_max_y, 
                                       self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
+                                      -self.config.goal_range_max_x, 
+                                      -self.config.goal_range_max_y, 
                                       self.config.goal_range_min, 
                                       -math.pi, 
                                       -math.pi, 
                                       -math.pi]]).reshape(self.config.fc_obs_shape) # type: ignore
-            obs_goal_max = np.array([[self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
+            obs_goal_max = np.array([[self.config.goal_range_max_x, 
+                                      self.config.goal_range_max_y, 
+                                      self.config.goal_range_max_z, 
+                                      self.config.goal_range_max_x, 
+                                      self.config.goal_range_max_y, 
+                                      self.config.goal_range_max_z, 
                                       math.pi, 
                                       math.pi, 
                                       math.pi]]).reshape(self.config.fc_obs_shape) # type: ignore
@@ -973,21 +977,21 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_colspheredist_max = np.full((1, self.config.n_colsphere), self.config.collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
 
             # Goal (wrt. robot)
-            obs_goal_min = np.array([[self.config.goal_range_min, 
+            obs_goal_min = np.array([[-self.config.goal_range_max_x, 
+                                      -self.config.goal_range_max_y, 
                                       self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
-                                      self.config.goal_range_min, 
+                                      -self.config.goal_range_max_x, 
+                                      -self.config.goal_range_max_y, 
                                       self.config.goal_range_min, 
                                       -math.pi, 
                                       -math.pi, 
                                       -math.pi]]).reshape(self.config.fc_obs_shape) # type: ignore
-            obs_goal_max = np.array([[self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
-                                      self.config.goal_range_max, 
+            obs_goal_max = np.array([[self.config.goal_range_max_x, 
+                                      self.config.goal_range_max_y, 
+                                      self.config.goal_range_max_z, 
+                                      self.config.goal_range_max_x, 
+                                      self.config.goal_range_max_y, 
+                                      self.config.goal_range_max_z, 
                                       math.pi, 
                                       math.pi, 
                                       math.pi]]).reshape(self.config.fc_obs_shape) # type: ignore
@@ -1019,13 +1023,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         else:
             action_space_model_min = np.full((1, 1), 0.0).reshape(self.config.fc_obs_shape)
             action_space_constraint_min = np.full((1, 1), 0.0).reshape(self.config.fc_obs_shape)
-            action_space_target_pos_min = np.full((1, 3), -1*self.config.goal_range_max).reshape(self.config.fc_obs_shape) # type: ignore
+            action_space_target_pos_min = np.array([-1*self.config.goal_range_max_x, -1*self.config.goal_range_max_y, self.config.goal_range_min]).reshape(self.config.fc_obs_shape)
             action_space_target_ori_min = np.full((1, 3), -math.pi).reshape(self.config.fc_obs_shape)
             obs_space_min = np.concatenate((action_space_model_min, action_space_constraint_min, action_space_target_pos_min, action_space_target_ori_min), axis=0)
 
             action_space_model_max = np.full((1, 1), 1.0).reshape(self.config.fc_obs_shape)
             action_space_constraint_max = np.full((1, 1), 1.0).reshape(self.config.fc_obs_shape)
-            action_space_target_pos_max = np.full((1, 3), self.config.goal_range_max).reshape(self.config.fc_obs_shape)
+            action_space_target_pos_max = np.array([self.config.goal_range_max_x, self.config.goal_range_max_y, self.config.goal_range_max_z]).reshape(self.config.fc_obs_shape)
             action_space_target_ori_max = np.full((1, 3), math.pi).reshape(self.config.fc_obs_shape)
             obs_space_max = np.concatenate((action_space_model_max, action_space_constraint_max, action_space_target_pos_max, action_space_target_ori_max), axis=0)
             
@@ -1033,7 +1037,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] action_type: " + str(self.config.action_type))
         if self.config.action_type == 0:
-            print("NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
             self.config.set_action_shape("Discrete, " + str(self.action_space.n)) # type: ignore
         else:
             self.config.set_action_shape(self.action_space.shape)
