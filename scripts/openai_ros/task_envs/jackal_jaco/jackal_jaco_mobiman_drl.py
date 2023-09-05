@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.08.31
+LAST UPDATE: 2023.09.04
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -42,7 +42,7 @@ from nav_msgs.srv import GetPlan
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
 from octomap_msgs.msg import Octomap
-from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL
+from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL, setBool, setBoolResponse, setInt, setIntResponse
 
 from gym import spaces
 from gym.envs.registration import register
@@ -91,7 +91,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.goal_status.data = False
         self.action_counter = 0
         self.observation_counter = 0
-        self.action_complete = False
+        self.mrt_ready = False
+        self.drl_action_result = 0
+        self.drl_action_complete = False
 
         self.init_robot_pose = {}
         self.robot_data = {}
@@ -120,6 +122,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #rospy.Subscriber("/" + str(self.robot_namespace) + "/laser_rings", Float32MultiArray, self.callback_laser_rings)
 
         # Services
+        rospy.Service('set_mrt_ready', setBool, self.service_set_mrt_ready)
+        rospy.Service('set_drl_action_result', setInt, self.service_set_drl_action_result)
+
+        # Clients
         '''
         if  self.config.observation_space_type == "mobiman_FC" or \
             self.config.observation_space_type == "mobiman_1DCNN_FC" or \
@@ -240,17 +246,27 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] total_step_num: " + str(self.total_step_num))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] action: " + str(action))
         
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting for mrt_ready...")
+        while not self.mrt_ready:
+            continue
+        self.mrt_ready = False
+        
         # Run Action Server
         success = self.client_set_action_drl(action, self.config.action_time_horizon)
         #while(!success):
         #    success = self.client_set_action_drl(action, self.config.action_time_horizon)
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting self.config.action_time_horizon: " + str(self.config.action_time_horizon))
-        rospy.sleep(self.config.action_time_horizon)
-        #while not self.action_complete:
-        #    continue
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting drl_action_complete for " + str(self.config.action_time_horizon) + " sec...")
+        #rospy.sleep(self.config.action_time_horizon)
+        while not self.drl_action_complete:
+            continue
+        self.drl_action_complete = False
 
-        self.action_complete = False
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] drl_action_result: " + str(self.drl_action_result))
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] DEBUG INF")
+        #while 1:
+        #    continue
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] END")
 
@@ -918,11 +934,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             # Goal (wrt. robot)
             # base x,y,z
             # ee x,y,z,roll,pitch,yaw
-            obs_goal_min = np.array([[-self.config.goal_range_max_x, 
-                                      -self.config.goal_range_max_y, 
+            obs_goal_min = np.array([[-self.config.goal_range_max_x, # type: ignore
+                                      -self.config.goal_range_max_y, # type: ignore
                                       self.config.goal_range_min, 
-                                      -self.config.goal_range_max_x, 
-                                      -self.config.goal_range_max_y, 
+                                      -self.config.goal_range_max_x, # type: ignore
+                                      -self.config.goal_range_max_y, # type: ignore   
                                       self.config.goal_range_min, 
                                       -math.pi, 
                                       -math.pi, 
@@ -977,11 +993,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_colspheredist_max = np.full((1, self.config.n_colsphere), self.config.collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
 
             # Goal (wrt. robot)
-            obs_goal_min = np.array([[-self.config.goal_range_max_x, 
-                                      -self.config.goal_range_max_y, 
+            obs_goal_min = np.array([[-self.config.goal_range_max_x, # type: ignore
+                                      -self.config.goal_range_max_y, # type: ignore
                                       self.config.goal_range_min, 
-                                      -self.config.goal_range_max_x, 
-                                      -self.config.goal_range_max_y, 
+                                      -self.config.goal_range_max_x, # type: ignore
+                                      -self.config.goal_range_max_y, # type: ignore
                                       self.config.goal_range_min, 
                                       -math.pi, 
                                       -math.pi, 
@@ -1023,7 +1039,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         else:
             action_space_model_min = np.full((1, 1), 0.0).reshape(self.config.fc_obs_shape)
             action_space_constraint_min = np.full((1, 1), 0.0).reshape(self.config.fc_obs_shape)
-            action_space_target_pos_min = np.array([-1*self.config.goal_range_max_x, -1*self.config.goal_range_max_y, self.config.goal_range_min]).reshape(self.config.fc_obs_shape)
+            action_space_target_pos_min = np.array([-1*self.config.goal_range_max_x, -1*self.config.goal_range_max_y, self.config.goal_range_min]).reshape(self.config.fc_obs_shape) # type: ignore
             action_space_target_ori_min = np.full((1, 3), -math.pi).reshape(self.config.fc_obs_shape)
             obs_space_min = np.concatenate((action_space_model_min, action_space_constraint_min, action_space_target_pos_min, action_space_target_ori_min), axis=0)
 
@@ -1362,6 +1378,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         except rospy.ServiceException as e:  
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::client_set_action_drl] ERROR: Service call failed: %s"%e)
             return False
+
+    def service_set_mrt_ready(self, req):
+        self.mrt_ready = req.val
+        return setBoolResponse(True)
+
+    def service_set_drl_action_result(self, req):
+        self.drl_action_result = req.val
+        self.drl_action_complete = True
+        return setIntResponse(True)
 
     '''
     DESCRIPTION: TODO...

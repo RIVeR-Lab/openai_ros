@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.06.30
+LAST UPDATE: 2023.09.04
 
 AUTHOR:     OPENAI_ROS
             Neset Unver Akmandor (NUA)
@@ -22,6 +22,7 @@ from gazebo_msgs.msg import ODEPhysics
 from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
+from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
 
 '''
 DESCRIPTION: TODO...
@@ -39,8 +40,9 @@ class GazeboConnection():
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
         self.reset_simulation_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
         self.reset_world_proxy = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-        self.reset_robot = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
-        self.reset_robot_config = rospy.ServiceProxy('/gazebo/set_model_configuration', SetModelConfiguration)
+        self.reset_mobiman = rospy.ServiceProxy('/reset_mobiman', resetMobiman)
+        #self.reset_robot = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+        #self.reset_robot_config = rospy.ServiceProxy('/gazebo/set_model_configuration', SetModelConfiguration)
         self.robot_namespace = robot_namespace
         self.initial_pose = {}
         self.update_initial_pose(initial_pose)
@@ -173,18 +175,20 @@ class GazeboConnection():
     '''
     def resetRobot(self):
         print("[gazebo_connection::GazeboConnection::resetRobot] START")
-        robot_reset_request = SetModelStateRequest()
-        robot_reset_joint_request = SetModelConfigurationRequest()
+        #robot_reset_request = SetModelStateRequest()
+        #robot_reset_joint_request = SetModelConfigurationRequest()
         #robot_reset_link_request = SetLinkStateRequest()
+        reset_mobiman_request = resetMobimanRequest()
         
         if self.robot_namespace != "":
             print("[gazebo_connection::GazeboConnection::resetRobot] self.robot_namespace: " + str(self.robot_namespace))
-            robot_reset_request.model_state.model_name = self.robot_namespace
-            robot_reset_joint_request.model_name = self.robot_namespace
+            #robot_reset_request.model_state.model_name = self.robot_namespace
+            #robot_reset_joint_request.model_name = self.robot_namespace
             #robot_reset_link_request.link_state.
         else:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: robot_namespace is not defined!")
 
+        '''
         robot_reset_request.model_state.pose.position.x = self.initial_pose["x_init"]
         robot_reset_request.model_state.pose.position.y = self.initial_pose["y_init"]
         robot_reset_request.model_state.pose.position.z = self.initial_pose["z_init"]
@@ -210,6 +214,7 @@ class GazeboConnection():
         robot_reset_joint_request.urdf_param_name = "/robot_description"
         robot_reset_joint_request.joint_names = ['j2n6s300_jointsdasdas_2']
         robot_reset_joint_request.joint_positions = [2.9]
+        '''
         
         '''
         robot_reset_joint_request.joint_names = [init_arm_joint_name_1, 
@@ -226,19 +231,43 @@ class GazeboConnection():
                                                      init_arm_joint_pos_6]
         '''
 
-        rospy.wait_for_service('/gazebo/set_model_state')
-        rospy.wait_for_service('/gazebo/set_model_configuration')
+        reset_mobiman_request.x = self.initial_pose["x_init"]
+        reset_mobiman_request.y = self.initial_pose["y_init"]
+        reset_mobiman_request.z = self.initial_pose["z_init"]
+        reset_mobiman_request.quat_x = self.initial_pose["x_rot_init"]
+        reset_mobiman_request.quat_y = self.initial_pose["y_rot_init"]
+        reset_mobiman_request.quat_z = self.initial_pose["z_rot_init"]
+        reset_mobiman_request.quat_w = self.initial_pose["w_rot_init"]
+
+        init_arm_joint_pos_1 = 0.0
+        init_arm_joint_pos_2 = 2.9
+        init_arm_joint_pos_3 = 1.3
+        init_arm_joint_pos_4 = 4.2
+        init_arm_joint_pos_5 = 1.4
+        init_arm_joint_pos_6 = 0.0
+
+        reset_mobiman_request.joint_1 = init_arm_joint_pos_1
+        reset_mobiman_request.joint_2 = init_arm_joint_pos_2
+        reset_mobiman_request.joint_3 = init_arm_joint_pos_3
+        reset_mobiman_request.joint_4 = init_arm_joint_pos_4
+        reset_mobiman_request.joint_5 = init_arm_joint_pos_5
+        reset_mobiman_request.joint_6 = init_arm_joint_pos_6
+
+        #rospy.wait_for_service('/gazebo/set_model_state')
+        #rospy.wait_for_service('/gazebo/set_model_configuration')
+        rospy.wait_for_service('/reset_mobiman')
         
         try:
-            self.reset_robot(robot_reset_request)
-            res = self.reset_robot_config(robot_reset_joint_request)
-            print("[gazebo_connection::GazeboConnection::resetRobot] res: " + str(res))
+            #self.reset_robot(robot_reset_request)
+            #res = self.reset_robot_config(robot_reset_joint_request)
+            suc = self.reset_mobiman(reset_mobiman_request)
+            print("[gazebo_connection::GazeboConnection::resetRobot] suc: " + str(suc))
         except rospy.ServiceException as e:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
 
-        print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
-        while 1:
-            continue
+        #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
+        #while 1:
+        #    continue
 
     '''
     DESCRIPTION: TODO...
