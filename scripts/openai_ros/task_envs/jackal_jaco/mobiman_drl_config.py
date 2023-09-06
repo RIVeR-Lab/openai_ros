@@ -69,8 +69,13 @@ class Config():
         self.robot_frame_name = rospy.get_param('robot_frame_name', "")
         self.ee_frame_name = rospy.get_param('ee_frame_name', "")
         self.goal_frame_name = rospy.get_param('goal_frame_name', "")
+        self.imu_msg_name = rospy.get_param('imu_msg_name', "")
+        self.target_msg_name = rospy.get_param('target_msg_name', "")
         self.occgrid_msg_name = rospy.get_param('occgrid_msg_name', "")
-        self.colsphere_msg_name = rospy.get_param('colsphere_msg_name', "")
+        self.selfcoldistance_msg_name = rospy.get_param('selfcoldistance_msg_name', "")
+        self.selfcoldistance_n_coeff = rospy.get_param('selfcoldistance_n_coeff', "")
+        self.extcoldistance_msg_name = rospy.get_param('extcoldistance_msg_name', "")
+        self.pointsonrobot_msg_name = rospy.get_param('pointsonrobot_msg_name', "")
         self.goal_status_msg_name = rospy.get_param('goal_status_msg_name', "")
 
         self.data_folder_path = data_folder_path
@@ -99,15 +104,19 @@ class Config():
             self.n_action_model = rospy.get_param("n_action_model", 0.0)
             self.n_action_constraint = rospy.get_param("n_action_constraint", 0.0)
             self.n_action_target = rospy.get_param("n_action_target", 0.0)
-            #self.n_colsphere = rospy.get_param("n_colsphere", 0.0)
+            #self.n_extcoldistance = rospy.get_param("n_extcoldistance", 0.0)
 
             self.goal_distance_threshold = rospy.get_param("goal_distance_threshold", 0.0)
             self.goal_range_min = rospy.get_param("goal_range_min", 0.0)
             self.goal_range_max_x = rospy.get_param('goal_range_max_x', 0.0)
             self.goal_range_max_y = rospy.get_param('goal_range_max_y', 0.0)
             self.goal_range_max_z = rospy.get_param('goal_range_max_z', 0.0)
-            self.collision_range_min = rospy.get_param('collision_range_min', 0.0)
-            self.collision_range_max = rospy.get_param('collision_range_max', 0.0)
+            self.self_collision_range_min = rospy.get_param('self_collision_range_min', 0.0)
+            self.self_collision_range_max = rospy.get_param('self_collision_range_max', 0.0)
+            self.ext_collision_range_min = rospy.get_param('ext_collision_range_min', 0.0)
+            self.ext_collision_range_max = rospy.get_param('ext_collision_range_max', 0.0)
+            self.rollover_pitch_threshold = rospy.get_param('rollover_pitch_threshold', 0.0)
+            self.rollover_roll_threshold = rospy.get_param('rollover_roll_threshold', 0.0)
             
             self.n_obs_stack = rospy.get_param("n_obs_stack", 0.0)
             self.n_skip_obs_stack = rospy.get_param("n_skip_obs_stack", 0.0)
@@ -139,8 +148,13 @@ class Config():
                 training_log_data.append(["robot_frame_name", self.robot_frame_name])
                 training_log_data.append(["ee_frame_name", self.ee_frame_name])
                 training_log_data.append(["goal_frame_name", self.goal_frame_name])
+                training_log_data.append(["imu_msg_name", self.imu_msg_name])
+                training_log_data.append(["target_msg_name", self.target_msg_name])
                 training_log_data.append(["occgrid_msg_name", self.occgrid_msg_name])
-                training_log_data.append(["colsphere_msg_name", self.colsphere_msg_name])
+                training_log_data.append(["selfcoldistance_msg_name", self.selfcoldistance_msg_name])
+                training_log_data.append(["selfcoldistance_n_coeff", self.selfcoldistance_n_coeff])
+                training_log_data.append(["extcoldistance_msg_name", self.extcoldistance_msg_name])
+                training_log_data.append(["pointsonrobot_msg_name", self.pointsonrobot_msg_name])
                 training_log_data.append(["goal_status_msg_name", self.goal_status_msg_name])
                 training_log_data.append(["max_episode_steps", self.max_episode_steps])
                 training_log_data.append(["training_timesteps", self.training_timesteps])
@@ -153,14 +167,18 @@ class Config():
                 training_log_data.append(["n_action_model", self.n_action_model])
                 training_log_data.append(["n_action_constraint", self.n_action_constraint])
                 training_log_data.append(["n_action_target", self.n_action_target])
-                #training_log_data.append(["n_colsphere", self.n_colsphere])
+                #training_log_data.append(["n_extcoldistance", self.n_extcoldistance])
                 training_log_data.append(["goal_distance_threshold", self.goal_distance_threshold])
                 training_log_data.append(["goal_range_min", self.goal_range_min])
                 training_log_data.append(["goal_range_max_x", self.goal_range_max_x])
                 training_log_data.append(["goal_range_max_y", self.goal_range_max_y])
                 training_log_data.append(["goal_range_max_z", self.goal_range_max_z])
-                training_log_data.append(["collision_range_min", self.collision_range_min])
-                training_log_data.append(["collision_range_max", self.collision_range_max])
+                training_log_data.append(["self_collision_range_min", self.self_collision_range_min])
+                training_log_data.append(["self_collision_range_max", self.self_collision_range_max])
+                training_log_data.append(["ext_collision_range_min", self.ext_collision_range_min])
+                training_log_data.append(["ext_collision_range_max", self.ext_collision_range_max])
+                training_log_data.append(["rollover_pitch_threshold", self.rollover_pitch_threshold])
+                training_log_data.append(["rollover_roll_threshold", self.rollover_roll_threshold])
                 training_log_data.append(["n_obs_stack", self.n_obs_stack])
                 training_log_data.append(["n_skip_obs_stack", self.n_skip_obs_stack]) 
                 training_log_data.append(["fc_obs_shape", self.fc_obs_shape])
@@ -263,8 +281,13 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] mode: " + str(self.mode))
         print("[mobiman_drl_config::Config::__init__] world_name: " + str(self.world_name))
         print("[mobiman_drl_config::Config::__init__] world_frame_name: " + str(self.world_frame_name))
+        print("[mobiman_drl_config::Config::__init__] imu_msg_name: " + str(self.imu_msg_name))
+        print("[mobiman_drl_config::Config::__init__] target_msg_name: " + str(self.target_msg_name))
         print("[mobiman_drl_config::Config::__init__] occgrid_msg_name: " + str(self.occgrid_msg_name))
-        print("[mobiman_drl_config::Config::__init__] colsphere_msg_name: " + str(self.colsphere_msg_name))
+        print("[mobiman_drl_config::Config::__init__] selfcoldistance_msg_name: " + str(self.selfcoldistance_msg_name))
+        print("[mobiman_drl_config::Config::__init__] selfcoldistance_n_coeff: " + str(self.selfcoldistance_n_coeff))
+        print("[mobiman_drl_config::Config::__init__] extcoldistance_msg_name: " + str(self.extcoldistance_msg_name))
+        print("[mobiman_drl_config::Config::__init__] pointsonrobot_msg_name: " + str(self.pointsonrobot_msg_name))
         print("[mobiman_drl_config::Config::__init__] goal_status_msg_name: " + str(self.goal_status_msg_name))
         print("[mobiman_drl_config::Config::__init__] goal_frame_name: " + str(self.goal_frame_name))
         print("[mobiman_drl_config::Config::__init__] max_episode_steps: " + str(self.max_episode_steps))
@@ -278,14 +301,18 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] n_action_model: " + str(self.n_action_model))
         print("[mobiman_drl_config::Config::__init__] n_action_constraint: " + str(self.n_action_constraint))
         print("[mobiman_drl_config::Config::__init__] n_action_target: " + str(self.n_action_target))
-        #print("[mobiman_drl_config::Config::__init__] n_colsphere: " + str(self.n_colsphere))
+        #print("[mobiman_drl_config::Config::__init__] n_extcoldistance: " + str(self.n_extcoldistance))
         print("[mobiman_drl_config::Config::__init__] goal_distance_threshold: " + str(self.goal_distance_threshold))
         print("[mobiman_drl_config::Config::__init__] goal_range_min: " + str(self.goal_range_min))
         print("[mobiman_drl_config::Config::__init__] goal_range_max_x: " + str(self.goal_range_max_x))
         print("[mobiman_drl_config::Config::__init__] goal_range_max_y: " + str(self.goal_range_max_y))
         print("[mobiman_drl_config::Config::__init__] goal_range_max_z: " + str(self.goal_range_max_z))
-        print("[mobiman_drl_config::Config::__init__] collision_range_min: " + str(self.collision_range_min))
-        print("[mobiman_drl_config::Config::__init__] collision_range_max: " + str(self.collision_range_max))
+        print("[mobiman_drl_config::Config::__init__] self_collision_range_min: " + str(self.self_collision_range_min))
+        print("[mobiman_drl_config::Config::__init__] self_collision_range_max: " + str(self.self_collision_range_max))
+        print("[mobiman_drl_config::Config::__init__] ext_collision_range_min: " + str(self.ext_collision_range_min))
+        print("[mobiman_drl_config::Config::__init__] ext_collision_range_max: " + str(self.ext_collision_range_max))
+        print("[mobiman_drl_config::Config::__init__] rollover_pitch_threshold: " + str(self.rollover_pitch_threshold))
+        print("[mobiman_drl_config::Config::__init__] rollover_roll_threshold: " + str(self.rollover_roll_threshold))
         print("[mobiman_drl_config::Config::__init__] n_obs_stack: " + str(self.n_obs_stack))
         print("[mobiman_drl_config::Config::__init__] n_skip_obs_stack: " + str(self.n_skip_obs_stack))
         print("[mobiman_drl_config::Config::__init__] fc_obs_shape: " + str(self.fc_obs_shape))
@@ -374,13 +401,25 @@ class Config():
     '''
     NUA TODO: 
     '''
-    def set_colsphere_config(self, n_colsphere):
-        self.n_colsphere = n_colsphere
+    def set_selfcoldistance_config(self, n_selfcoldistance):
+        self.n_selfcoldistance = n_selfcoldistance
         training_log_data = []
-        training_log_data.append(["n_colsphere", self.n_colsphere])
+        training_log_data.append(["n_selfcoldistance", self.n_selfcoldistance])
         training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
 
-        print("[mobiman_drl_config::Config::set_occgrid_config] occgrid_data_size: " + str(self.n_colsphere))
+        print("[mobiman_drl_config::Config::set_selfcoldistance_config] n_selfcoldistance: " + str(self.n_selfcoldistance))
+
+    '''
+    NUA TODO: 
+    '''
+    def set_extcoldistance_config(self, n_extcoldistance):
+        self.n_extcoldistance = n_extcoldistance
+        training_log_data = []
+        training_log_data.append(["n_extcoldistance", self.n_extcoldistance])
+        training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
+        write_data(training_log_file, training_log_data)
+
+        print("[mobiman_drl_config::Config::set_selfcoldistance_config] n_extcoldistance: " + str(self.n_extcoldistance))
 
     
