@@ -985,8 +985,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def reward_func(self, x_min, x_max, y_min, y_max, x_query):
         reward = 0
-        if x_min <= x_query <= x_max:
-            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min)
+        if x_query < x_min:
+            reward = y_max
+        elif x_query > x_max:
+            reward = y_min
+        else:
+            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min) + y_max
         return reward
 
     '''
