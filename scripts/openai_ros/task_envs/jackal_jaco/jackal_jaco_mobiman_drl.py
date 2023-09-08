@@ -16,6 +16,7 @@ NUA TODO:
 
 import rospy
 import numpy as np
+import pandas as pd
 import time
 import math
 import cv2
@@ -86,6 +87,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.total_collisions = 0
         self.step_reward = 0.0
         self.episode_reward = 0.0
+        self.step_action = None
         self.total_mean_episode_reward = 0.0
         self.goal_status = Bool()
         self.goal_status.data = False
@@ -94,6 +96,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.mrt_ready = False
         self.mpc_action_result = 0
         self.mpc_action_complete = False
+        # Variables for saving OARS data
+        self.data = None
+        self.oars_data = {'Index':[], 'Observation':[], 'Action':[], 'Reward':[]}
+        self.idx = 1
         self.termination_reason = -1
         self.model_mode = -1
         
@@ -256,6 +262,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO...
     '''
     def _set_action(self, action):
+        self.step_action = action
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] START")
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] total_step_num: " + str(self.total_step_num))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] action: " + str(action))
@@ -447,7 +454,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             '''
         
         self.episode_reward += self.step_reward # type: ignore
-
+        self.save_oar_data()
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_reward: " + str(self.step_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_reward: " + str(self.episode_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: " + str(self.total_step_num))
@@ -486,6 +493,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             ## Write training data
             write_data(self.config.data_folder_path + "training_data.csv", self.training_data)
+            self.data = pd.DataFrame(self.oars_data)
+            print(self.data.head())
+            self.data.to_csv(self.oar_data_file)
 
         self.total_step_num += 1
 
@@ -501,7 +511,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def save_oar_data(self):
         if  self.config.observation_space_type == "laser_FC" or \
-            self.config.observation_space_type == "Tentabot_FC":
+            self.config.observation_space_type == "Tentabot_FC" or \
+            self.config.observation_space_type == "mobiman_FC":
         
                 #print("----------------------------------")
                 #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::save_oar_data] self.obs shape: " + str(self.obs.shape))
@@ -509,19 +520,31 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 #print("")
 
                 obs_data = self.obs.reshape((-1)) # type: ignore
-
+                
+                
                 #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::save_oar_data] obs_data shape: " + str(obs_data.shape))
                 #print("----------------------------------")
 
                 # Save Observation-Action-Reward Data
                 self.episode_oar_data['obs'].append(obs_data) # type: ignore
-
+                self.oars_data['Index'].append(self.idx)
+                self.oars_data['Observation'].append(obs_data.tolist())
+                self.oars_data['Action'].append(self.step_action)
+                self.oars_data['Reward'].append(self.step_reward)
                 if not self._episode_done:
-
-                    self.episode_oar_data['acts'].append(self.act) # type: ignore
+                    self.episode_oar_data['acts'].append(self.action_space) # type: ignore
                     #self.episode_oar_data['infos'].append()
                     #self.episode_oar_data['terminal'].append(self._episode_done)
                     self.episode_oar_data['rews'].append(self.step_reward) # type: ignore
+                    ############ CSV #################
+                else:
+                    # self.episode_oar_data['obs'].append(obs_data) # type: ignore
+                    self.oars_data['Index'].append(None)
+                    self.oars_data['Observation'].append([])
+                    self.oars_data['Action'].append([])
+                    self.oars_data['Reward'].append([])
+                    self.idx = 0
+                self.idx += 1
 
                 '''
                 print("----------------------------------")
