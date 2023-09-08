@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.09.07
+LAST UPDATE: 2023.09.05
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -16,6 +16,7 @@ NUA TODO:
 
 import rospy
 import numpy as np
+import pandas as pd
 import time
 import math
 import cv2
@@ -27,7 +28,6 @@ import pickle
 from matplotlib import pyplot as plt
 from PIL import Image
 from squaternion import Quaternion
-
 import tf
 import tf2_ros
 import tf2_msgs.msg
@@ -42,7 +42,7 @@ from nav_msgs.srv import GetPlan
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
 from octomap_msgs.msg import Octomap
-from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL, setBool, setBoolResponse, setMPCActionResult, setMPCActionResultResponse
+from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL, setBool, setBoolResponse, setInt, setIntResponse
 
 from gym import spaces
 from gym.envs.registration import register
@@ -84,6 +84,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.step_num = 1
         self.total_step_num = 1
         self.total_collisions = 0
+        self.step_action = None
         self.step_reward = 0.0
         self.episode_reward = 0.0
         self.total_mean_episode_reward = 0.0
@@ -92,11 +93,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.action_counter = 0
         self.observation_counter = 0
         self.mrt_ready = False
-        self.mpc_action_result = 0
-        self.mpc_action_complete = False
-        self.termination_reason = -1
-        self.model_mode = -1
-        
+        self.drl_action_result = 0
+        self.drl_action_complete = False
+        # Variables for saving OARS data
+        self.data = None
+        self.oars_data = {'Index':[], 'Observation':[], 'Action':[], 'Reward':[]}
+        self.idx = 1
+
         self.init_robot_pose = {}
         self.robot_data = {}
         self.goal_data = {}
@@ -122,7 +125,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         rospy.Subscriber("/tf", TransformStamped, self.callback_tf)
         rospy.Subscriber(self.config.target_msg_name, MarkerArray, self.callback_target)
         rospy.Subscriber(self.config.occgrid_msg_name, OccupancyGrid, self.callback_occgrid)
-
         rospy.Subscriber(self.config.selfcoldistance_msg_name, MarkerArray, self.callback_selfcoldistance)
         rospy.Subscriber(self.config.extcoldistance_msg_name, MarkerArray, self.callback_extcoldistance)
         rospy.Subscriber(self.config.pointsonrobot_msg_name, MarkerArray, self.callback_pointsonrobot)
@@ -134,7 +136,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         # Services
         rospy.Service('set_mrt_ready', setBool, self.service_set_mrt_ready)
-        rospy.Service('set_mpc_action_result', setMPCActionResult, self.service_set_mpc_action_result)
+        rospy.Service('set_drl_action_result', setInt, self.service_set_drl_action_result)
 
         # Clients
         '''
@@ -202,7 +204,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self._episode_done = False
         self._reached_goal = False
         self.step_num = 1
-        self.termination_reason = -1
 
         '''
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] BEFORE client_reset_map_utility")
@@ -249,6 +250,19 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         # Update target observation
         self.update_observation()
 
+        '''
+        # Check if the goal is reached
+        self.check_goal()
+
+        # Check if there is a collison
+        if self.check_collision():
+            self._episode_done = True
+
+        # Check if there is a rollover
+        if self.check_rollover():
+            self._episode_done = True
+        '''
+
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] END")
         return self.obs
 
@@ -256,6 +270,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     DESCRIPTION: TODO...
     '''
     def _set_action(self, action):
+        self.step_action = action
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] START")
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] total_step_num: " + str(self.total_step_num))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] action: " + str(action))
@@ -270,14 +285,27 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #while(!success):
         #    success = self.client_set_action_drl(action, self.config.action_time_horizon)
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting drl_action_complete for " + str(self.config.action_time_horizon) + " sec...")
         #rospy.sleep(self.config.action_time_horizon)
-        while not self.mpc_action_complete:
-            continue
-        self.mpc_action_complete = False
+        while not self.drl_action_complete:
+            # Update data
+            self.update_robot_data()
+            self.update_arm_data()
+            self.update_goal_data()
+            self.update_target_data()
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] mpc_action_result: " + str(self.mpc_action_result))
-        self.termination_reason = self.mpc_action_result
+            # Check if the goal is reached
+            self.check_goal()
+
+            # Check if there is a collison
+            self.check_collision()
+
+            # Check if there is a rollover
+            self.check_rollover()
+        self.drl_action_complete = False
+
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] drl_action_result: " + str(self.drl_action_result))
+
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] DEBUG INF")
         #while 1:
         #    continue
@@ -293,7 +321,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         if self.step_num >= self.config.max_episode_steps: # type: ignore
             self._episode_done = True
-            self.termination_reason = 3
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Too late...")
 
         if self._episode_done and (not self._reached_goal):
@@ -306,9 +333,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Not yet bro...")
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] Not yet bro...")
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] termination_reason: " + str(self.termination_reason))
-
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_is_done] END")
+        # self.save_oar_data()
         return self._episode_done
 
     '''
@@ -321,23 +347,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         if self._episode_done and (not self._reached_goal):
 
-            ## If termination_reason = -1 -> MPC/MRT Failure
-            ## If termination_reason = 1 -> Collision
-            ## If termination_reason = 2 -> Rollover
-            ## If termination_reason = 3 -> Max Step
-            if self.termination_reason is 1:
-                self.step_reward = self.config.reward_terminal_collision
-            elif self.termination_reason is 2:
-                self.step_reward = self.config.reward_terminal_roll
-            elif self.termination_reason is 3:
-                self.step_reward = self.config.reward_terminal_max_step
-            else:
-                ### NUA TODO: ADD A NEW REWARD!
-                self.step_reward = self.config.reward_terminal_collision
-                #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
-                #while 1:
-                #    continue
-
+            self.step_reward = self.config.penalty_terminal_fail
             self.goal_status.data = False
             self.goal_status_pub.publish(self.goal_status)
 
@@ -361,7 +371,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         elif self._episode_done and self._reached_goal:
 
             #self.step_reward = self.config.reward_terminal_success + self.config.reward_terminal_mintime * (self.config.max_episode_steps - self.step_num) / self.config.max_episode_steps
-            self.step_reward = self.config.reward_terminal_goal
+            self.step_reward = self.config.reward_terminal_success
             self.goal_status.data = True
             self.goal_status_pub.publish(self.goal_status)
 
@@ -383,46 +393,36 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             print("--------------")
 
         else:
-            # Step Reward: base to goal
-            current_base_distance2goal = self.get_base_distance2goal_3D()
-            reward_step_goal_base_val = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_base_distance2goal)
-            reward_step_goal_base = self.config.alpha_step_goal_base * reward_step_goal_base_val # type: ignore
-            #self.previous_base_distance2goal = current_base_distance2goal
 
-            # Step Reward: ee to goal
-            reward_step_goal_ee = self.config.alpha_step_goal_ee * self.config.reward_step_goal # type: ignore
+            '''
+            if current_distance2goal > self.init_distance2goal:
+                #penalty
+                self.step_reward = -1 * self.config.reward_cumulative_step * current_distance2goal / (self.config.max_episode_steps * self.init_distance2goal)
 
-            # Step Reward: ee to target
-            reward_step_target = self.config.alpha_step_target * self.config.reward_step_target # type: ignore
-            
-            # Step Reward: model mode
-            reward_mode = 0
-            if self.model_mode is 0:
-                reward_mode = self.config.reward_step_mode0
-            elif self.model_mode is 1:
-                reward_mode = self.config.reward_step_mode1
-            elif self.model_mode is 2:
-                reward_mode = self.config.reward_step_mode2
             else:
-                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
-                while 1:
-                    continue
-            reward_step_mode = self.config.alpha_step_mode * reward_mode # type: ignore
+                #reward
+                self.step_reward = self.config.reward_cumulative_step * (self.init_distance2goal - current_distance2goal) / (self.config.max_episode_steps * self.init_distance2goal)
+            '''
 
-            # Step Reward: mpc result
-
-            #current_base_distance2goal = self.get_base_distance2goal_2D()
-            #penalty_step = self.config.penalty_cumulative_step / self.config.max_episode_steps # type: ignore
-            #rp_step = self.config.reward_step_scale * (self.previous_base_distance2goal - current_base_distance2goal) # type: ignore
-            
-            # Total Step Reward
-            self.step_reward = (self.config.alpha_step_goal_base * reward_step_goal_base
-                                + self.config.alpha_step_goal_base * reward_step_goal_ee
-                                + self.config.alpha_step_mode * reward_step_mode) 
+            ### NUA TODO: REVIEW!!!
+            current_base_distance2goal = self.get_base_distance2goal_2D()
+            penalty_step = self.config.penalty_cumulative_step / self.config.max_episode_steps # type: ignore
+            rp_step = self.config.reward_step_scale * (self.previous_base_distance2goal - current_base_distance2goal) # type: ignore
+            self.step_reward = penalty_step + rp_step
+            self.previous_base_distance2goal = current_base_distance2goal
 
             self.step_num += 1
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
+
+            '''
+            penalty_safety = 0
+            if self.min_distance2obstacle < self.config.safety_range_threshold:
+                
+                penalty_safety = self.config.penalty_safety_scale * (self.config.safety_range_threshold / self.min_distance2obstacle)
+                #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] penalty_safety: {}".format(penalty_safety))
+            '''
+            #self.step_reward = round(penalty_safety + reward_step, self.config.mantissa_precision)
 
             '''
             time_now = time.time()
@@ -447,7 +447,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             '''
         
         self.episode_reward += self.step_reward # type: ignore
-
+        self.save_oar_data()
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_reward: " + str(self.step_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_reward: " + str(self.episode_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: " + str(self.total_step_num))
@@ -457,7 +457,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] self.step_reward: " + str(self.step_reward))
         print("----------------------")
         '''
-
         '''
         # Save Observation-Action-Reward data into a file
         self.save_oar_data()
@@ -482,16 +481,22 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if self.total_step_num == self.config.training_timesteps:
             
             # Write Observation-Action-Reward data into a file
-            #self.write_oar_data()
+            # self.write_oar_data()
 
             ## Write training data
             write_data(self.config.data_folder_path + "training_data.csv", self.training_data)
+
+            self.data = pd.DataFrame(self.oars_data)
+            print(self.data.head())
+            self.data.to_csv(self.oar_data_file)
+            # self.save_oar_data()
 
         self.total_step_num += 1
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] END")
         print("--------------------------------------------------")
         print("")
+
         return self.step_reward
 
     ################ Internal TaskEnv Methods ################
@@ -501,7 +506,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def save_oar_data(self):
         if  self.config.observation_space_type == "laser_FC" or \
-            self.config.observation_space_type == "Tentabot_FC":
+            self.config.observation_space_type == "Tentabot_FC" or \
+            self.config.observation_space_type == "mobiman_FC":
         
                 #print("----------------------------------")
                 #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::save_oar_data] self.obs shape: " + str(self.obs.shape))
@@ -509,19 +515,31 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 #print("")
 
                 obs_data = self.obs.reshape((-1)) # type: ignore
-
+                
+                
                 #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::save_oar_data] obs_data shape: " + str(obs_data.shape))
                 #print("----------------------------------")
 
                 # Save Observation-Action-Reward Data
                 self.episode_oar_data['obs'].append(obs_data) # type: ignore
-
+                self.oars_data['Index'].append(self.idx)
+                self.oars_data['Observation'].append(obs_data.tolist())
+                self.oars_data['Action'].append(self.step_action)
+                self.oars_data['Reward'].append(self.step_reward)
                 if not self._episode_done:
-
-                    self.episode_oar_data['acts'].append(self.act) # type: ignore
+                    self.episode_oar_data['acts'].append(self.action_space) # type: ignore
                     #self.episode_oar_data['infos'].append()
                     #self.episode_oar_data['terminal'].append(self._episode_done)
                     self.episode_oar_data['rews'].append(self.step_reward) # type: ignore
+                    ############ CSV #################
+                else:
+                    # self.episode_oar_data['obs'].append(obs_data) # type: ignore
+                    self.oars_data['Index'].append(None)
+                    self.oars_data['Observation'].append([])
+                    self.oars_data['Action'].append([])
+                    self.oars_data['Reward'].append([])
+                    self.idx = 0
+                self.idx += 1
 
                 '''
                 print("----------------------------------")
@@ -954,15 +972,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def get_arm_distance2goal_3D(self):
         distance2goal = self.get_euclidean_distance_3D(self.goal_data, self.arm_data)
         return distance2goal
-    
-    '''
-    DESCRIPTION: TODO...
-    '''
-    def reward_func(self, x_min, x_max, y_min, y_max, x_query):
-        reward = 0
-        if x_min <= x_query <= x_max:
-            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min)
-        return reward
 
     '''
     DESCRIPTION: TODO...
@@ -979,7 +988,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             if dist < self.config.self_collision_range_min:
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] SELF COLLISION")
                 self._episode_done = True
-                self.termination_reason = 1
                 return True
             
         for dist in extcoldistancedist:
@@ -987,14 +995,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             if dist < self.config.ext_collision_range_min:
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] EXT COLLISION")
                 self._episode_done = True
-                self.termination_reason = 1
                 return True
 
         for por in pointsonrobot:
             if por.z < self.config.ext_collision_range_min:
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] GROUND COLLISION ")
                 self._episode_done = True
-                self.termination_reason = 1
                 return True
 
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] END")
@@ -1014,7 +1020,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if self.robot_data["pitch"] > self.config.rollover_pitch_threshold:
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_rollover] PITCH ROLLOVER!!!")
             self._episode_done = True
-            self.termination_reason = 2
             return True
         
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_rollover] roll: " + str(self.robot_data["roll"]))
@@ -1023,7 +1028,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if self.robot_data["roll"] > self.config.rollover_roll_threshold:
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_rollover] ROLL ROLLOVER!!!")
             self._episode_done = True
-            self.termination_reason = 2
             return True
         
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_rollover] END")
@@ -1051,7 +1055,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def get_obs_selfcoldistancedist(self):
         selfcoldistance_msg = self.selfcoldistance_msg
-
+        print(self.selfcoldistance_msg, selfcoldistance_msg, '**************************************', sep='\n')
         obs_selfcoldistancedist = np.full((1, self.config.n_selfcoldistance), self.config.self_collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
         for i in range(self.config.n_selfcoldistance):
             csm = selfcoldistance_msg.markers[i*self.config.selfcoldistance_n_coeff] # type: ignore
@@ -1290,6 +1294,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] DEBUG INF")
         #while 1:
         #    continue
+
 
     '''
     DESCRIPTION: TODO...
@@ -1602,15 +1607,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.mrt_ready = req.val
         return setBoolResponse(True)
 
-    def service_set_mpc_action_result(self, req):
-        self.mpc_action_result = req.action_result
-
-        if self.mpc_action_result is not 0:
-            self._episode_done = True
-        
-        self.model_mode = req.model_mode
-        self.mpc_action_complete = True
-        return setMPCActionResultResponse(True)
+    def service_set_drl_action_result(self, req):
+        self.drl_action_result = req.val
+        self.drl_action_complete = True
+        return setIntResponse(True)
 
     '''
     DESCRIPTION: TODO...
