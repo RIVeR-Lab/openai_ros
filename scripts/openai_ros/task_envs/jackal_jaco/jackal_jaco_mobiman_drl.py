@@ -20,6 +20,7 @@ import pandas as pd
 import time
 import math
 import cv2
+import gc
 import os
 import csv
 import random
@@ -455,6 +456,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         
         self.episode_reward += self.step_reward # type: ignore
         self.save_oar_data()
+        self.data = pd.DataFrame(self.oars_data)
+        self.data.to_csv(self.oar_data_file)
+        del self.data
+        gc.collect()
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] step_reward: " + str(self.step_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] episode_reward: " + str(self.episode_reward))
         rospy.logdebug("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_step_num: " + str(self.total_step_num))
@@ -493,9 +498,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             ## Write training data
             write_data(self.config.data_folder_path + "training_data.csv", self.training_data)
-            self.data = pd.DataFrame(self.oars_data)
-            print(self.data.head())
-            self.data.to_csv(self.oar_data_file)
 
         self.total_step_num += 1
 
