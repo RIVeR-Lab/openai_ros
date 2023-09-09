@@ -393,29 +393,33 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         else:
             # Step Reward: base to goal
             current_base_distance2goal = self.get_base_distance2goal_3D()
-            reward_step_goal_base_val = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_base_distance2goal)
-            reward_step_goal_base = self.config.alpha_step_goal_base * reward_step_goal_base_val # type: ignore
+            reward_step_goal_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_base_distance2goal)
+            weighted_reward_step_goal_base = self.config.alpha_step_goal_base * reward_step_goal_base # type: ignore
             #self.previous_base_distance2goal = current_base_distance2goal
 
             # Step Reward: ee to goal
-            reward_step_goal_ee = self.config.alpha_step_goal_ee * self.config.reward_step_goal # type: ignore
+            current_arm_distance2goal = self.get_arm_distance2goal_3D()
+            reward_step_target_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_arm_distance2goal)
+            weighted_reward_step_goal_ee = self.config.alpha_step_goal_ee * reward_step_target_base # type: ignore
 
             # Step Reward: ee to target
+            current_arm_distance2target = self.get_arm_distance2target_3D()
+            current_arm_distance2goal = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_arm_distance2target)
             reward_step_target = self.config.alpha_step_target * self.config.reward_step_target # type: ignore
             
             # Step Reward: model mode
-            reward_mode = 0
+            reward_step_mode = 0
             if self.model_mode is 0:
-                reward_mode = self.config.reward_step_mode0
+                reward_step_mode = self.config.reward_step_mode0
             elif self.model_mode is 1:
-                reward_mode = self.config.reward_step_mode1
+                reward_step_mode = self.config.reward_step_mode1
             elif self.model_mode is 2:
-                reward_mode = self.config.reward_step_mode2
+                reward_step_mode = self.config.reward_step_mode2
             else:
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
                 while 1:
                     continue
-            reward_step_mode = self.config.alpha_step_mode * reward_mode # type: ignore
+            weighted_reward_step_mode = self.config.alpha_step_mode * reward_step_mode # type: ignore
 
             # Step Reward: mpc result
 
@@ -424,9 +428,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #rp_step = self.config.reward_step_scale * (self.previous_base_distance2goal - current_base_distance2goal) # type: ignore
             
             # Total Step Reward
-            self.step_reward = (self.config.alpha_step_goal_base * reward_step_goal_base
-                                + self.config.alpha_step_goal_base * reward_step_goal_ee
-                                + self.config.alpha_step_mode * reward_step_mode) 
+            self.step_reward = weighted_reward_step_goal_base + weighted_reward_step_goal_ee + weighted_reward_step_mode
 
             self.step_num += 1
 
@@ -727,9 +729,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         trans = self.trans_robot_wrt_world
         rot = self.rot_robot_wrt_world
 
-        q = Quaternion(rot[3], rot[0], rot[1], rot[2]) # type: ignore
-        e = q.to_euler(degrees=False)
-
         self.robot_data["x"] = trans[0] # type: ignore
         self.robot_data["y"] = trans[1] # type: ignore
         self.robot_data["z"] = trans[2] # type: ignore
@@ -737,6 +736,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.robot_data["qy"] = rot[1] # type: ignore
         self.robot_data["qz"] = rot[2] # type: ignore
         self.robot_data["qw"] = rot[3] # type: ignore
+        
+        q = Quaternion(rot[3], rot[0], rot[1], rot[2]) # type: ignore
+        e = q.to_euler(degrees=False)
         self.robot_data["roll"] = e[0]
         self.robot_data["pitch"] = e[1]
         self.robot_data["yaw"] = e[2]
@@ -758,9 +760,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         trans = self.trans_ee_wrt_world
         rot = self.rot_ee_wrt_world
 
-        q = Quaternion(rot[3], rot[0], rot[1], rot[2]) # type: ignore
-        e = q.to_euler(degrees=False)
-
         self.arm_data["x"] = trans[0] # type: ignore
         self.arm_data["y"] = trans[1] # type: ignore
         self.arm_data["z"] = trans[2] # type: ignore
@@ -768,6 +767,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.arm_data["qy"] = rot[1] # type: ignore
         self.arm_data["qz"] = rot[2] # type: ignore
         self.arm_data["qw"] = rot[3] # type: ignore
+        
+        q = Quaternion(rot[3], rot[0], rot[1], rot[2]) # type: ignore
+        e = q.to_euler(degrees=False)
         self.arm_data["roll"] = e[0]
         self.arm_data["pitch"] = e[1]
         self.arm_data["yaw"] = e[2] 
@@ -857,6 +859,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.goal_data["qz"] = rotation_wrt_world[2] # type: ignore
         self.goal_data["qw"] = rotation_wrt_world[3] # type: ignore
 
+        q = Quaternion(rotation_wrt_world[3], rotation_wrt_world[0], rotation_wrt_world[1], rotation_wrt_world[2]) # type: ignore
+        e = q.to_euler(degrees=False)
+        self.goal_data["roll"] = e[0] # type: ignore
+        self.goal_data["pitch"] = e[1] # type: ignore
+        self.goal_data["yaw"] = e[2] # type: ignore
+
         self.goal_data["x_wrt_robot"] = translation_wrt_robot[0] # type: ignore
         self.goal_data["y_wrt_robot"] = translation_wrt_robot[1] # type: ignore
         self.goal_data["z_wrt_robot"] = translation_wrt_robot[2] # type: ignore
@@ -924,6 +932,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.target_data["qz"] = target_msg.markers[0].pose.orientation.z
             self.target_data["qw"] = target_msg.markers[0].pose.orientation.w
 
+            q = Quaternion(target_msg.markers[0].pose.orientation.w, target_msg.markers[0].pose.orientation.x, target_msg.markers[0].pose.orientation.y, target_msg.markers[0].pose.orientation.z) # type: ignore
+            e = q.to_euler(degrees=False)
+            self.target_data["roll"] = e[0] # type: ignore
+            self.target_data["pitch"] = e[1] # type: ignore
+            self.target_data["yaw"] = e[2] # type: ignore
+
             p = Point()
             p.x = self.target_data["x"]
             p.y = self.target_data["y"]
@@ -944,6 +958,18 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def get_euclidean_distance_3D(self, p1, p2={"x":0.0, "y":0.0, "z":0.0}):
         return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2 + (p1["z"] - p2["z"])**2)
+    
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def get_quaternion_distance(self, q1, q2={"qx":0.0, "qy":0.0, "qz":0.0, "qw":1.0}):
+        m_q1 = np.zeros([q1["x"], q1["y"], q1["z"]])
+        m_q2 = np.zeros([q2["x"], q2["y"], q2["z"]])
+        qdist_vec = q1["w"] * m_q2 + q2["w"] * m_q1 + np.cross(m_q1, m_q2)
+        qdist = np.linalg.norm(qdist_vec)
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] qdist: " + str(qdist))
+
+        return qdist
 
     '''
     DESCRIPTION: TODO...Get the initial distance to the goal
@@ -978,6 +1004,20 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def get_arm_distance2goal_3D(self):
         distance2goal = self.get_euclidean_distance_3D(self.goal_data, self.arm_data)
+        return distance2goal
+    
+    '''
+    DESCRIPTION: TODO...Gets the distance to the goal
+    '''
+    def get_arm_distance2target_3D(self):
+        distance2goal = self.get_euclidean_distance_3D(self.target_data, self.arm_data)
+        return distance2goal
+    
+    '''
+    DESCRIPTION: TODO...Gets the distance to the goal
+    '''
+    def get_arm_quatdistance2target(self):
+        distance2goal = self.get_quaternion_distance(self.target_data, self.arm_data)
         return distance2goal
     
     '''

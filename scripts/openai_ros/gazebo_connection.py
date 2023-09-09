@@ -23,6 +23,7 @@ from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, S
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
+import multiprocessing
 
 '''
 DESCRIPTION: TODO...
@@ -46,7 +47,7 @@ class GazeboConnection():
         self.robot_namespace = robot_namespace
         self.initial_pose = {}
         self.update_initial_pose(initial_pose)
-
+        self.reset_done = False
         # Setup the Gravity Controle system
         service_name = '/gazebo/set_physics_properties'
         rospy.logdebug("Waiting for service " + str(service_name))
@@ -137,7 +138,15 @@ class GazeboConnection():
         elif self.reset_world_or_sim == "ROBOT":
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
             print("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
-            self.resetRobot()
+            self.reset_done = False
+            reset_thread = multiprocessing.Process(target=self.resetRobot)
+            reset_thread.daemon = True
+            reset_thread.start()
+            reset_thread.join(timeout=10)
+            if reset_thread.is_alive():
+                reset_thread.terminate()
+                self.resetSim()
+            # self.resetRobot()
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
@@ -262,6 +271,7 @@ class GazeboConnection():
             #res = self.reset_robot_config(robot_reset_joint_request)
             suc = self.reset_mobiman(reset_mobiman_request)
             print("[gazebo_connection::GazeboConnection::resetRobot] suc: " + str(suc))
+            self.reset_done = suc.success
         except rospy.ServiceException as e:
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
 
