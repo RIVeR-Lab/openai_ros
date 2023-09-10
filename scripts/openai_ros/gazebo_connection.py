@@ -19,7 +19,7 @@ NUA TODO:
 import rospy
 from std_srvs.srv import Empty, EmptyRequest
 from gazebo_msgs.msg import ODEPhysics
-from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
+from gazebo_msgs.srv import DeleteModel, DeleteModelRequest, SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
 from controller_manager_msgs.srv import LoadController, LoadControllerRequest, ListControllers, ListControllersRequest
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
@@ -145,23 +145,17 @@ class GazeboConnection():
             reset_thread.start()
             reset_thread.join(timeout=10)
             if reset_thread.is_alive():
-                try:
-                    reset_thread.terminate()
-                except Exception as e:
-                    pass
-                # self.resetSim()
+                reset_thread.terminate()
                 print("Terminating Thread")
-                check_controller = rospy.ServiceProxy('/controller_manager/list_controllers', ListControllers)
-                rospy.wait_for_service('/controller_manager/list_controllers')
+                reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+                delete_mobiman = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+                rospy.wait_for_service('/gazebo/delete_model')
+                rospy.wait_for_service('/gazebo/reset_world')
                 try:
-                    out = check_controller(ListControllersRequest())
-                    if len(out.controller) == 0:
-                        controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller', 'joint_group_position_controller']
-                        load_controller = rospy.ServiceProxy('/controller_manager/load_controller', LoadController)
-                        for control in controller_list:
-                            rospy.wait_for_service('/controller_manager/load_controller')
-                            load_controller(LoadControllerRequest(control))
-                            self.resetSim()
+                    delete_mobiman(DeleteModelRequest('mobiman'))
+                    rospy.sleep(0.5)
+                    reset_world(EmptyRequest())
+                    self.resetSim()
                 except Exception as e:
                     pass
 
