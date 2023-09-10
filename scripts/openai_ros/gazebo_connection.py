@@ -19,7 +19,7 @@ NUA TODO:
 import rospy
 from std_srvs.srv import Empty, EmptyRequest
 from gazebo_msgs.msg import ODEPhysics
-from gazebo_msgs.srv import DeleteModel, DeleteModelRequest, SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
+from gazebo_msgs.srv import GetWorldProperties, GetWorldPropertiesRequest, GetPhysicsProperties, GetPhysicsPropertiesRequest, DeleteModel, DeleteModelRequest, SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
 from controller_manager_msgs.srv import LoadController, LoadControllerRequest, ListControllers, ListControllersRequest
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
@@ -143,21 +143,28 @@ class GazeboConnection():
             reset_thread = multiprocessing.Process(target=self.resetRobot)
             reset_thread.daemon = True
             reset_thread.start()
-            reset_thread.join(timeout=10)
+            reset_thread.join(timeout=20)
             if reset_thread.is_alive():
-                reset_thread.terminate()
-                print("Terminating Thread")
-                reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-                delete_mobiman = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
-                rospy.wait_for_service('/gazebo/delete_model')
-                rospy.wait_for_service('/gazebo/reset_world')
-                try:
-                    delete_mobiman(DeleteModelRequest('mobiman'))
-                    rospy.sleep(0.5)
-                    reset_world(EmptyRequest())
-                    self.resetSim()
-                except Exception as e:
-                    pass
+                get_physics = rospy.ServiceProxy('/gazebo/get_physics_properties', GetPhysicsProperties)
+                phy_res = get_physics(GetPhysicsPropertiesRequest())
+                get_model = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
+                get_model_res = get_model(GetWorldPropertiesRequest())
+                if phy_res.pause == False and 'mobiman' in get_model_res.model_names:
+                    print("BREAK")
+                else:
+                    reset_thread.terminate()
+                    print("Terminating Thread")
+                    reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+                    delete_mobiman = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+                    rospy.wait_for_service('/gazebo/delete_model')
+                    rospy.wait_for_service('/gazebo/reset_world')
+                    try:
+                        delete_mobiman(DeleteModelRequest('mobiman'))
+                        reset_world(EmptyRequest())
+                        self.resetSim()
+                    except Exception as e:
+                        print("Exception: ", e)
+
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
