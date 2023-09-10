@@ -20,7 +20,7 @@ import rospy
 from std_srvs.srv import Empty, EmptyRequest
 from gazebo_msgs.msg import ODEPhysics
 from gazebo_msgs.srv import SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
-from controller_manager_msgs.srv import LoadController, LoadControllerRequest
+from controller_manager_msgs.srv import LoadController, LoadControllerRequest, ListControllers, ListControllersRequest
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
@@ -145,13 +145,16 @@ class GazeboConnection():
             reset_thread.start()
             reset_thread.join(timeout=10)
             if reset_thread.is_alive():
-                reset_thread.terminate()
+                try:
+                    reset_thread.terminate()
+                except Exception as e:
+                    pass
                 # self.resetSim()
                 print("Terminating Thread")
-                check_controller = rospy.ServiceProxy('/controller_manager/list_controllers', Empty)
+                check_controller = rospy.ServiceProxy('/controller_manager/list_controllers', ListControllers)
                 rospy.wait_for_service('/controller_manager/list_controllers')
                 try:
-                    out = check_controller(EmptyRequest())
+                    out = check_controller(ListControllersRequest())
                     if len(out.controller) == 0:
                         controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller', 'joint_group_position_controller']
                         load_controller = rospy.ServiceProxy('/controller_manager/load_controller', LoadController)
@@ -161,7 +164,6 @@ class GazeboConnection():
                             self.resetSim()
                 except Exception as e:
                     pass
-            # self.resetRobot()
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
             rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] NO_RESET_SIM")
