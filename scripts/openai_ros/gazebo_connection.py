@@ -19,12 +19,15 @@ NUA TODO:
 import rospy
 from std_srvs.srv import Empty, EmptyRequest
 from gazebo_msgs.msg import ODEPhysics
-from gazebo_msgs.srv import GetWorldProperties, GetWorldPropertiesRequest, GetPhysicsProperties, GetPhysicsPropertiesRequest, DeleteModel, DeleteModelRequest, SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
-from controller_manager_msgs.srv import LoadController, LoadControllerRequest, ListControllers, ListControllersRequest
+from gazebo_msgs.srv import SpawnModelRequest, SpawnModel, GetWorldProperties, GetWorldPropertiesRequest, GetPhysicsProperties, GetPhysicsPropertiesRequest, DeleteModel, DeleteModelRequest, SetPhysicsProperties, SetPhysicsPropertiesRequest, SetModelState, SetModelStateRequest, SetModelConfiguration, SetModelConfigurationRequest
+from controller_manager_msgs.srv import LoadController, LoadControllerRequest, ListControllers, ListControllersRequest, SwitchControllerRequest, SwitchController
 from std_msgs.msg import Float64
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Vector3, Pose
 from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
-import multiprocessing
+import subprocess
+import datetime
+# import multiprocessing
+import rospkg
 
 '''
 DESCRIPTION: TODO...
@@ -35,8 +38,14 @@ class GazeboConnection():
     DESCRIPTION: TODO...
     '''
     def __init__(self, start_init_physics_parameters, reset_world_or_sim, max_retry = 20, robot_namespace='', initial_pose={}):
-
+        
         print("[gazebo_connection::GazeboConnection::__init__] START")
+        rospack = rospkg.RosPack()
+        path = rospack.get_path('mobiman_simulation') + "/urdf/"
+        jackal_jaco_urdf = path + "jackal_jaco.urdf"
+        with open(jackal_jaco_urdf, 'r') as f:
+            self.jackal_jacko_xml = f.read()
+        self.joint_names = [f'j2n6s300_joint_{str(a)}' for a in range(1,7)]
         self._max_retry = max_retry
         self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
@@ -49,6 +58,7 @@ class GazeboConnection():
         self.initial_pose = {}
         self.update_initial_pose(initial_pose)
         self.reset_done = False
+        self.reset_counter = 0
         # Setup the Gravity Controle system
         service_name = '/gazebo/set_physics_properties'
         rospy.logdebug("Waiting for service " + str(service_name))
@@ -59,8 +69,11 @@ class GazeboConnection():
         self.start_init_physics_parameters = start_init_physics_parameters
         self.reset_world_or_sim = reset_world_or_sim
         self.init_values()
+        
         # We always pause the simulation, important for legged robots learning
         self.pauseSim()
+        self.jackal_jaco_xml = None
+        
         print("[gazebo_connection::GazeboConnection::__init__] END")
 
     '''
@@ -139,31 +152,40 @@ class GazeboConnection():
         elif self.reset_world_or_sim == "ROBOT":
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
             print("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
-            self.reset_done = False
-            reset_thread = multiprocessing.Process(target=self.resetRobot)
-            reset_thread.daemon = True
-            reset_thread.start()
-            reset_thread.join(timeout=20)
-            if reset_thread.is_alive():
-                get_physics = rospy.ServiceProxy('/gazebo/get_physics_properties', GetPhysicsProperties)
-                phy_res = get_physics(GetPhysicsPropertiesRequest())
-                get_model = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
-                get_model_res = get_model(GetWorldPropertiesRequest())
-                if phy_res.pause == False and 'mobiman' in get_model_res.model_names:
-                    print("BREAK")
-                else:
-                    reset_thread.terminate()
-                    print("Terminating Thread")
-                    reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-                    delete_mobiman = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
-                    rospy.wait_for_service('/gazebo/delete_model')
-                    rospy.wait_for_service('/gazebo/reset_world')
-                    try:
-                        delete_mobiman(DeleteModelRequest('mobiman'))
-                        reset_world(EmptyRequest())
-                        self.resetSim()
-                    except Exception as e:
-                        print("Exception: ", e)
+            self.reset_counter += 1
+            print("[gazebo_connection::GazeboConnection::resetSim] RESET COUNTER: ", self.reset_counter)
+            self.resetRobot()
+            self.reset_world_or_sim == "ROBOT"
+            rospy.sleep(1)
+            # self.resetSim()
+            # reset_thread = multiprocessing.Process(target=self.resetRobot)
+            # reset_thread.daemon = True
+            # reset_thread.start()
+            # reset_thread.join(timeout=20)
+            # if reset_thread.is_alive():
+            #     get_physics = rospy.ServiceProxy('/gazebo/get_physics_properties', GetPhysicsProperties)
+            #     phy_res = get_physics(GetPhysicsPropertiesRequest())
+            #     get_model = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
+            #     get_model_res = get_model(GetWorldPropertiesRequest())
+            #     if phy_res.pause == False and 'mobiman' in get_model_res.model_names:
+            #         print("BREAK")
+            #     else:
+            #         reset_thread.terminate()
+            #         print("Terminating Thread")
+            #         reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+            #         delete_mobiman = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+            #         rospy.wait_for_service('/gazebo/delete_model')
+            #         rospy.wait_for_service('/gazebo/reset_world')
+            #         try:
+            #             delete_mobiman(DeleteModelRequest('mobiman'))
+            #             reset_world(EmptyRequest())
+            #             self.resetSim()
+            #         except Exception as e:
+            #             print("Exception: ", e)
+            # self.reset_world_or_sim == "ROBOT"
+            # print("[gazebo_connection::GazeboConnection::resetSim] Counter: ", self.reset_counter)
+            # self.reset_counter 
+            # self.resetSim()
 
 
         elif self.reset_world_or_sim == "NO_RESET_SIM":
@@ -205,7 +227,7 @@ class GazeboConnection():
         #robot_reset_request = SetModelStateRequest()
         #robot_reset_joint_request = SetModelConfigurationRequest()
         #robot_reset_link_request = SetLinkStateRequest()
-        reset_mobiman_request = resetMobimanRequest()
+        # reset_mobiman_request = resetMobimanRequest()
         
         if self.robot_namespace != "":
             print("[gazebo_connection::GazeboConnection::resetRobot] self.robot_namespace: " + str(self.robot_namespace))
@@ -257,14 +279,21 @@ class GazeboConnection():
                                                      init_arm_joint_pos_5,
                                                      init_arm_joint_pos_6]
         '''
-
-        reset_mobiman_request.x = self.initial_pose["x_init"]
-        reset_mobiman_request.y = self.initial_pose["y_init"]
-        reset_mobiman_request.z = self.initial_pose["z_init"]
-        reset_mobiman_request.quat_x = self.initial_pose["x_rot_init"]
-        reset_mobiman_request.quat_y = self.initial_pose["y_rot_init"]
-        reset_mobiman_request.quat_z = self.initial_pose["z_rot_init"]
-        reset_mobiman_request.quat_w = self.initial_pose["w_rot_init"]
+        robot_pose = Pose()
+        robot_pose.position.x = self.initial_pose["x_init"]
+        robot_pose.position.y = self.initial_pose["y_init"]
+        robot_pose.position.z = self.initial_pose["z_init"]
+        robot_pose.orientation.x = self.initial_pose["x_rot_init"]
+        robot_pose.orientation.y = self.initial_pose["y_rot_init"]
+        robot_pose.orientation.z = self.initial_pose["z_rot_init"]
+        robot_pose.orientation.w = self.initial_pose["w_rot_init"]
+        # reset_mobiman_request.x = self.initial_pose["x_init"]
+        # reset_mobiman_request.y = self.initial_pose["y_init"]
+        # reset_mobiman_request.z = self.initial_pose["z_init"]
+        # reset_mobiman_request.quat_x = self.initial_pose["x_rot_init"]
+        # reset_mobiman_request.quat_y = self.initial_pose["y_rot_init"]
+        # reset_mobiman_request.quat_z = self.initial_pose["z_rot_init"]
+        # reset_mobiman_request.quat_w = self.initial_pose["w_rot_init"]
 
         init_arm_joint_pos_1 = 0.0
         init_arm_joint_pos_2 = 2.9
@@ -272,26 +301,118 @@ class GazeboConnection():
         init_arm_joint_pos_4 = 4.2
         init_arm_joint_pos_5 = 1.4
         init_arm_joint_pos_6 = 0.0
-
-        reset_mobiman_request.joint_1 = init_arm_joint_pos_1
-        reset_mobiman_request.joint_2 = init_arm_joint_pos_2
-        reset_mobiman_request.joint_3 = init_arm_joint_pos_3
-        reset_mobiman_request.joint_4 = init_arm_joint_pos_4
-        reset_mobiman_request.joint_5 = init_arm_joint_pos_5
-        reset_mobiman_request.joint_6 = init_arm_joint_pos_6
+        joint_positions = [init_arm_joint_pos_1, init_arm_joint_pos_2, init_arm_joint_pos_3, \
+                            init_arm_joint_pos_4, init_arm_joint_pos_5, init_arm_joint_pos_6]
+        # reset_mobiman_request.joint_1 = init_arm_joint_pos_1
+        # reset_mobiman_request.joint_2 = init_arm_joint_pos_2
+        # reset_mobiman_request.joint_3 = init_arm_joint_pos_3
+        # reset_mobiman_request.joint_4 = init_arm_joint_pos_4
+        # reset_mobiman_request.joint_5 = init_arm_joint_pos_5
+        # reset_mobiman_request.joint_6 = init_arm_joint_pos_6
 
         #rospy.wait_for_service('/gazebo/set_model_state')
         #rospy.wait_for_service('/gazebo/set_model_configuration')
-        rospy.wait_for_service('/reset_mobiman')
+        # rospy.wait_for_service('/reset_mobiman')
         
+        # try:
+        pause_physics_client = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
+        controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller', 'joint_group_position_controller']
+        ### Pause Physics
+        print("[gazebo_connection::GazeboConnection::resetRobot] Pause Physics")
         try:
+            rospy.wait_for_service('/gazebo/pause_physics')
+            pause_physics_client(EmptyRequest())
+        except Exception as e:
+            pass
+        ### Delete Model
+        cdel = 0
+        print("[gazebo_connection::GazeboConnection::resetRobot] Delete Model")
+        while True:
+            if cdel > 100:
+                break
+            cdel += 1
+            try:
+                delete_model = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+                rospy.wait_for_service('/gazebo/delete_model')
+                delete_model(DeleteModelRequest('mobiman'))
+            except Exception as e:
+                pass
+            rospy.wait_for_service('/gazebo/get_world_properties')
+            get_model = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
+            get_model_res = get_model(GetWorldPropertiesRequest())
+            if 'mobiman' not in get_model_res.model_names:
+                break
+            
+        current_time = datetime.datetime.now().second
+        while datetime.datetime.now().second <= current_time + 0.5:
+            continue
+        ### Spawn Model
+        cdel = 0
+        print("[gazebo_connection::GazeboConnection::resetRobot] Spawning Model")
+        while True:
+            if cdel > 100:
+                break
+            cdel += 1
+            try:
+                rospy.wait_for_service('/gazebo/spawn_urdf_model')
+                spawn_model = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
+                spawn_model(SpawnModelRequest(model_name='mobiman', model_xml=self.jackal_jacko_xml, robot_namespace='', initial_pose=robot_pose, reference_frame='world'))
+            except Exception as e:
+                pass
+                # while res.status_message != True:
+                #     res = spawn_model(SpawnModelRequest(model_name='mobiman', model_xml=self.jackal_jacko_xml, robot_namespace='', initial_pose=robot_pose, reference_frame='world'))
+            rospy.wait_for_service('/gazebo/get_world_properties')
+            get_model = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
+            get_model_res = get_model(GetWorldPropertiesRequest())
+            if 'mobiman' in get_model_res.model_names:
+                break
+            
+        ### Set Config
+        current_time = datetime.datetime.now().second
+        while datetime.datetime.now().second <= current_time + 0.5:
+            continue
+        print("[gazebo_connection::GazeboConnection::resetRobot] Setting Configuration")
+        try:
+            rospy.wait_for_service('/gazebo/set_model_configuration')
+            set_configuration = rospy.ServiceProxy('/gazebo/set_model_configuration', SetModelConfiguration)
+            for i in range(1, 40):
+                rospy.wait_for_service('/gazebo/set_model_configuration')
+                set_configuration(SetModelConfigurationRequest(model_name='mobiman', urdf_param_name='robot_description', joint_names=self.joint_names, joint_positions=joint_positions))
+        except Exception as e:
+            pass
+        ### LOAD Controller
+        print("[gazebo_connection::GazeboConnection::resetRobot] Loading Controller")
+        try:
+            load_controller = rospy.ServiceProxy('/controller_manager/load_controller', LoadController)
+            for controller in controller_list:
+                rospy.wait_for_service('/controller_manager/load_controller')
+                load_controller(LoadControllerRequest(controller))
+        except Exception as e:
+            pass
+        ### Switch Controller
+        print("[gazebo_connection::GazeboConnection::resetRobot] Switching Controller")
+        command = 'sleep 0.5 && rosservice call /gazebo/unpause_physics "{}"'
+        try:
+            switch_controller = rospy.ServiceProxy('/controller_manager/switch_controller', SwitchController)
+            switch_controller_req = SwitchControllerRequest()
+            switch_controller_req.start_asap = True
+            switch_controller_req.strictness = switch_controller_req.STRICT
+            for idx, controller in enumerate(controller_list):
+                switch_controller_req.start_controllers = [controller]
+                if idx == 0:
+                    subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, stderr=subprocess.STDOUT)
+                rospy.wait_for_service('/controller_manager/switch_controller')
+                res = switch_controller(switch_controller_req)
+        except Exception as e:
+            pass
+            # rospy.wait_for_service('/gazebo/spawn_urdf_model')
             #self.reset_robot(robot_reset_request)
             #res = self.reset_robot_config(robot_reset_joint_request)
-            suc = self.reset_mobiman(reset_mobiman_request)
-            print("[gazebo_connection::GazeboConnection::resetRobot] suc: " + str(suc))
-            self.reset_done = suc.success
-        except rospy.ServiceException as e:
-            rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
+            # suc = self.reset_mobiman(reset_mobiman_request)
+            # print("[gazebo_connection::GazeboConnection::resetRobot] suc: " + str(suc))
+            # self.reset_done = suc.success
+        # except rospy.ServiceException as e:
+        #     rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
 
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
         #while 1:
