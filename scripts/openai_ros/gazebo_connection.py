@@ -26,6 +26,7 @@ from geometry_msgs.msg import Vector3, Pose
 from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
 import subprocess
 import datetime
+from tf.transformations import euler_from_quaternion
 # import multiprocessing
 import rospkg
 
@@ -42,8 +43,8 @@ class GazeboConnection():
         print("[gazebo_connection::GazeboConnection::__init__] START")
         rospack = rospkg.RosPack()
         path = rospack.get_path('mobiman_simulation') + "/urdf/"
-        jackal_jaco_urdf = path + "jackal_jaco.urdf"
-        with open(jackal_jaco_urdf, 'r') as f:
+        self.jackal_jaco_urdf = path + "jackal_jaco.urdf"
+        with open(self.jackal_jaco_urdf, 'r') as f:
             self.jackal_jacko_xml = f.read()
         self.joint_names = [f'j2n6s300_joint_{str(a)}' for a in range(1,7)]
         self._max_retry = max_retry
@@ -318,19 +319,18 @@ class GazeboConnection():
         pause_physics_client = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
         controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller', 'joint_group_position_controller']
         ### Pause Physics
+        # '''
         print("[gazebo_connection::GazeboConnection::resetRobot] Pause Physics")
         try:
             rospy.wait_for_service('/gazebo/pause_physics')
             pause_physics_client(EmptyRequest())
         except Exception as e:
             pass
+        # '''
         ### Delete Model
         cdel = 0
         print("[gazebo_connection::GazeboConnection::resetRobot] Delete Model")
         while True:
-            if cdel > 100:
-                break
-            cdel += 1
             try:
                 delete_model = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
                 rospy.wait_for_service('/gazebo/delete_model')
@@ -342,10 +342,22 @@ class GazeboConnection():
             get_model_res = get_model(GetWorldPropertiesRequest())
             if 'mobiman' not in get_model_res.model_names:
                 break
-            
-        current_time = datetime.datetime.now().second
-        while datetime.datetime.now().second <= current_time + 0.5:
-            continue
+        '''
+        Subprocess for Spawn Model
+        '''
+        roll_,pitch_, yaw_ = euler_from_quaternion([self.initial_pose["x_rot_init"], self.initial_pose["y_rot_init"], self.initial_pose["z_rot_init"], self.initial_pose["w_rot_init"]])
+        # print(roll_, pitch_, yaw_, '************')
+        command = f'rosrun gazebo_ros spawn_model -urdf -file {self.jackal_jaco_urdf} -model mobiman -x {self.initial_pose["x_init"]} -y {self.initial_pose["y_init"]} -z {self.initial_pose["z_init"]} -R {roll_} -P {pitch_} -Y {yaw_} ' + \
+                    f'-J {self.joint_names[0]} {init_arm_joint_pos_1} ' + \
+                    f'-J {self.joint_names[1]} {init_arm_joint_pos_2} ' + \
+                    f'-J {self.joint_names[2]} {init_arm_joint_pos_3} ' + \
+                    f'-J {self.joint_names[3]} {init_arm_joint_pos_4} ' + \
+                    f'-J {self.joint_names[4]} {init_arm_joint_pos_5} ' + \
+                    f'-J {self.joint_names[5]} {init_arm_joint_pos_6} ' + '-reference_frame world'
+        
+        subprocess.call(command, shell=True, stderr=subprocess.STDOUT)
+        print(subprocess.STDOUT)
+        '''
         ### Spawn Model
         cdel = 0
         print("[gazebo_connection::GazeboConnection::resetRobot] Spawning Model")
@@ -368,9 +380,7 @@ class GazeboConnection():
                 break
             
         ### Set Config
-        current_time = datetime.datetime.now().second
-        while datetime.datetime.now().second <= current_time + 0.5:
-            continue
+        
         print("[gazebo_connection::GazeboConnection::resetRobot] Setting Configuration")
         try:
             rospy.wait_for_service('/gazebo/set_model_configuration')
@@ -381,6 +391,7 @@ class GazeboConnection():
         except Exception as e:
             pass
         ### LOAD Controller
+        '''
         print("[gazebo_connection::GazeboConnection::resetRobot] Loading Controller")
         try:
             load_controller = rospy.ServiceProxy('/controller_manager/load_controller', LoadController)
@@ -399,12 +410,13 @@ class GazeboConnection():
             switch_controller_req.strictness = switch_controller_req.STRICT
             for idx, controller in enumerate(controller_list):
                 switch_controller_req.start_controllers = [controller]
-                if idx == 0:
-                    subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, stderr=subprocess.STDOUT)
+                # if idx == 0:
+                subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, stderr=subprocess.STDOUT)
                 rospy.wait_for_service('/controller_manager/switch_controller')
                 res = switch_controller(switch_controller_req)
         except Exception as e:
             pass
+        '''
             # rospy.wait_for_service('/gazebo/spawn_urdf_model')
             #self.reset_robot(robot_reset_request)
             #res = self.reset_robot_config(robot_reset_joint_request)
@@ -413,7 +425,7 @@ class GazeboConnection():
             # self.reset_done = suc.success
         # except rospy.ServiceException as e:
         #     rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
-
+        '''
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
         #while 1:
         #    continue
