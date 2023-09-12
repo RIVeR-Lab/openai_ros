@@ -25,6 +25,8 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3, Pose
 from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
 import subprocess
+import os
+import signal
 import datetime
 from tf.transformations import euler_from_quaternion
 # import multiprocessing
@@ -403,6 +405,7 @@ class GazeboConnection():
         ### Switch Controller
         print("[gazebo_connection::GazeboConnection::resetRobot] Switching Controller")
         command = 'sleep 0.5 && rosservice call /gazebo/unpause_physics "{}"'
+        unpause_proc = None
         try:
             switch_controller = rospy.ServiceProxy('/controller_manager/switch_controller', SwitchController)
             switch_controller_req = SwitchControllerRequest()
@@ -411,7 +414,7 @@ class GazeboConnection():
             for idx, controller in enumerate(controller_list):
                 switch_controller_req.start_controllers = [controller]
                 # if idx == 0:
-                subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, stderr=subprocess.STDOUT)
+                unpause_proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
                 rospy.wait_for_service('/controller_manager/switch_controller')
                 res = switch_controller(switch_controller_req)
         except Exception as e:
@@ -426,6 +429,14 @@ class GazeboConnection():
         # except rospy.ServiceException as e:
         #     rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: /gazebo/set_model_state service call failed!")
         '''
+        # try:
+        # except Exception as e:
+            # print("Error terminating process spawn")
+        try:
+            os.killpg(os.getpgid(unpause_proc.pid), signal.SIGTERM)
+        except Exception as e:
+            print("Error terminating process unpause")
+        # rospy.sleep(1)
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
         #while 1:
         #    continue
