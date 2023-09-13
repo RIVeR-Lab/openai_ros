@@ -319,7 +319,7 @@ class GazeboConnection():
         
         # try:
         pause_physics_client = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
-        controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller', 'joint_group_position_controller']
+        controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller']
         ### Pause Physics
         # '''
         print("[gazebo_connection::GazeboConnection::resetRobot] Pause Physics")
@@ -440,7 +440,7 @@ class GazeboConnection():
         # except Exception as e:
             # print("Error terminating process spawn")
         try:
-            os.killpg(os.getpgid(unpause_proc.pid), signal.SIGTERM)
+            os.killpg(os.getpgid(unpause_proc.pid), signal.SIGTERM) # type: ignore
         except Exception as e:
             print("Error terminating process unpause")
         # rospy.sleep(1)
