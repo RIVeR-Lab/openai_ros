@@ -158,7 +158,7 @@ class GazeboConnection():
             self.reset_counter += 1
             print("[gazebo_connection::GazeboConnection::resetSim] RESET COUNTER: ", self.reset_counter)
             self.resetRobot()
-            self.reset_world_or_sim == "ROBOT"
+            # self.reset_world_or_sim == "ROBOT"
             rospy.sleep(1)
             # self.resetSim()
             # reset_thread = multiprocessing.Process(target=self.resetRobot)
@@ -344,6 +344,13 @@ class GazeboConnection():
             get_model_res = get_model(GetWorldPropertiesRequest())
             if 'mobiman' not in get_model_res.model_names:
                 break
+        ### Reset Simulation
+        reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+        try:
+            rospy.wait_for_service('/gazebo/reset_world')
+            reset_world(EmptyRequest())
+        except Exception as e:
+            print("Error Resetting World")
         '''
         Subprocess for Spawn Model
         '''
