@@ -27,6 +27,7 @@ from mobiman_simulation.srv import resetMobiman, resetMobimanRequest
 import subprocess
 import os
 import signal
+from sensor_msgs.msg import JointState
 import datetime
 from tf.transformations import euler_from_quaternion
 # import multiprocessing
@@ -443,6 +444,11 @@ class GazeboConnection():
             os.killpg(os.getpgid(unpause_proc.pid), signal.SIGTERM) # type: ignore
         except Exception as e:
             print("Error terminating process unpause")
+        msg = None
+        msg = rospy.wait_for_message('/joint_states', JointState, timeout=rospy.Duration(2.0))
+        if msg == None:
+            self.reset_robot()
+        
         # rospy.sleep(1)
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
         #while 1:
