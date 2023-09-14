@@ -44,7 +44,7 @@ class RobotGazeboEnv(gym.Env):
         self.seed()
 
         # Set up ROS related variables
-        self.episode_num = 1
+        self.episode_num = 0
         self.cumulated_episode_reward = 0
         self.reward_pub = rospy.Publisher('/openai/reward', RLExperimentInfo, queue_size=1)
 

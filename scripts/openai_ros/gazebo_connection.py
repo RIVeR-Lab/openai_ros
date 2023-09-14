@@ -144,20 +144,20 @@ class GazeboConnection():
     def resetSim(self):
 
         if self.reset_world_or_sim == "SIMULATION":
-            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
-            print("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
+            #rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
+            #print("[gazebo_connection::GazeboConnection::resetSim] SIMULATION")
             self.resetSimulation()
 
         elif self.reset_world_or_sim == "WORLD":
-            rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] WORLD")
-            print("[gazebo_connection::GazeboConnection::resetSim] WORLD")
+            #rospy.logerr("[gazebo_connection::GazeboConnection::resetSim] WORLD")
+            #print("[gazebo_connection::GazeboConnection::resetSim] WORLD")
             self.resetWorld()
         
         elif self.reset_world_or_sim == "ROBOT":
-            rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
-            print("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
+            #rospy.logdebug("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
+            #print("[gazebo_connection::GazeboConnection::resetSim] ROBOT")
             self.reset_counter += 1
-            print("[gazebo_connection::GazeboConnection::resetSim] RESET COUNTER: ", self.reset_counter)
+            #print("[gazebo_connection::GazeboConnection::resetSim] RESET COUNTER: ", self.reset_counter)
             self.resetRobot()
             # self.reset_world_or_sim == "ROBOT"
             rospy.sleep(1)
@@ -227,18 +227,13 @@ class GazeboConnection():
     DESCRIPTION: TODO...
     '''
     def resetRobot(self):
-        print("[gazebo_connection::GazeboConnection::resetRobot] START")
+        #print("[gazebo_connection::GazeboConnection::resetRobot] START")
         #robot_reset_request = SetModelStateRequest()
         #robot_reset_joint_request = SetModelConfigurationRequest()
         #robot_reset_link_request = SetLinkStateRequest()
         # reset_mobiman_request = resetMobimanRequest()
         
-        if self.robot_namespace != "":
-            print("[gazebo_connection::GazeboConnection::resetRobot] self.robot_namespace: " + str(self.robot_namespace))
-            #robot_reset_request.model_state.model_name = self.robot_namespace
-            #robot_reset_joint_request.model_name = self.robot_namespace
-            #robot_reset_link_request.link_state.
-        else:
+        if self.robot_namespace == "":
             rospy.logdebug("[gazebo_connection::GazeboConnection::resetRobot] ERROR: robot_namespace is not defined!")
 
         '''
@@ -323,7 +318,7 @@ class GazeboConnection():
         controller_list = ['arm_controller', 'joint_state_controller', 'jackal_velocity_controller']
         ### Pause Physics
         # '''
-        print("[gazebo_connection::GazeboConnection::resetRobot] Pause Physics")
+        #print("[gazebo_connection::GazeboConnection::resetRobot] Pause Physics")
         try:
             rospy.wait_for_service('/gazebo/pause_physics')
             pause_physics_client(EmptyRequest())
@@ -332,7 +327,7 @@ class GazeboConnection():
         # '''
         ### Delete Model
         cdel = 0
-        print("[gazebo_connection::GazeboConnection::resetRobot] Delete Model")
+        #print("[gazebo_connection::GazeboConnection::resetRobot] Delete Model")
         while True:
             try:
                 delete_model = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
@@ -351,7 +346,7 @@ class GazeboConnection():
             rospy.wait_for_service('/gazebo/reset_world')
             reset_world(EmptyRequest())
         except Exception as e:
-            print("Error Resetting World")
+            print("[gazebo_connection::GazeboConnection::resetRobot] Error Resetting World")
         '''
         Subprocess for Spawn Model
         '''
@@ -366,7 +361,7 @@ class GazeboConnection():
                     f'-J {self.joint_names[5]} {init_arm_joint_pos_6} ' + '-reference_frame world'
         
         subprocess.call(command, shell=True, stderr=subprocess.STDOUT)
-        print(subprocess.STDOUT)
+        #print(subprocess.STDOUT)
         '''
         ### Spawn Model
         cdel = 0
@@ -402,7 +397,7 @@ class GazeboConnection():
             pass
         ### LOAD Controller
         '''
-        print("[gazebo_connection::GazeboConnection::resetRobot] Loading Controller")
+        #print("[gazebo_connection::GazeboConnection::resetRobot] Loading Controller")
         try:
             load_controller = rospy.ServiceProxy('/controller_manager/load_controller', LoadController)
             for controller in controller_list:
@@ -411,7 +406,7 @@ class GazeboConnection():
         except Exception as e:
             pass
         ### Switch Controller
-        print("[gazebo_connection::GazeboConnection::resetRobot] Switching Controller")
+        #print("[gazebo_connection::GazeboConnection::resetRobot] Switching Controller")
         command = 'sleep 0.5 && rosservice call /gazebo/unpause_physics "{}"'
         unpause_proc = None
         try:
@@ -445,9 +440,9 @@ class GazeboConnection():
         except Exception as e:
             print("Error terminating process unpause")
         msg = None
-        msg = rospy.wait_for_message('/joint_states', JointState, timeout=rospy.Duration(2.0))
+        msg = rospy.wait_for_message('/joint_states', JointState, timeout=rospy.Duration(2.0)) # type: ignore
         if msg == None:
-            self.reset_robot()
+            self.reset_robot() # type: ignore
         
         # rospy.sleep(1)
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
