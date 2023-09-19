@@ -402,7 +402,7 @@ class Config():
         training_log_data.append(["observation_shape", self.observation_shape])
         training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
-        print("[mobiman_drl_config::Config::set_occgrid_config] observation_shape: " + str(self.observation_shape))
+        print("[mobiman_drl_config::Config::set_observation_shape] observation_shape: " + str(self.observation_shape))
 
     '''
     NUA TODO: 
@@ -413,7 +413,7 @@ class Config():
         training_log_data.append(["action_shape", self.action_shape])
         training_log_file = self.data_folder_path + self.training_log_name + ".csv" # type: ignore
         write_data(training_log_file, training_log_data)
-        print("[mobiman_drl_config::Config::set_occgrid_config] action_shape: " + str(self.action_shape))
+        print("[mobiman_drl_config::Config::set_action_shape] action_shape: " + str(self.action_shape))
 
     '''
     NUA TODO: 

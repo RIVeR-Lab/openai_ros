@@ -1023,13 +1023,14 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.target_data["pitch"] = e[1] # type: ignore
             self.target_data["yaw"] = e[2] # type: ignore
 
+            '''
             p = Point()
             p.x = self.target_data["x"]
             p.y = self.target_data["y"]
             p.z = self.target_data["z"]
             debug_point_data = [p]
             self.publish_debug_visu(debug_point_data)
-
+            '''
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] END")
 
     '''
@@ -1290,10 +1291,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_selfcoldistance[i] = dist
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_selfcoldistance] dist " + str(i) + ": " + str(dist))
         
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_selfcoldistance] obs_selfcoldistance shape: " + str(obs_selfcoldistance.shape))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_selfcoldistance] DEBUG INF")
-        while 1:
-            continue
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_selfcoldistance] obs_selfcoldistance shape: " + str(obs_selfcoldistance.shape))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_selfcoldistance] DEBUG INF")
+        #while 1:
+        #    continue
         
         return obs_selfcoldistance
     
@@ -1303,6 +1304,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def get_obs_extcoldistance_base(self):
         extcoldistance_base_msg = self.extcoldistance_base_msg
 
+        #debug_point_data = []
         #obs_extcoldistance_base = np.full((1, self.config.n_extcoldistance_base), self.config.ext_collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
         obs_extcoldistance_base = np.array([[extcoldistance_base_msg.p1[0].x, 
                                              extcoldistance_base_msg.p1[0].y, 
@@ -1312,16 +1314,28 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #p2 = {"x":csm.points[1].x, "y":csm.points[1].y, "z":csm.points[1].z}
             #dist = self.get_euclidean_distance_3D(p1, p2)
             #obs_extcoldistance_base[i] = dist
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] dist " + str(i) + ": " + str(dist))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] p" + str(i) + ".x: " + str(p1.x))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] p" + str(i) + ".y: " + str(p1.y))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] p" + str(i) + ".z: " + str(p1.z))
+
+            '''
+            p = Point()
+            p.x = p1.x
+            p.y = p1.y
+            p.z = p1.z
+            debug_point_data.append(p)
+            '''
 
             if i > 0:
-                obs_extcoldistance_base_tmp = np.array([[p1[i].x, p1[i].y, p1[i].z]]).reshape(self.config.fc_obs_shape)
+                obs_extcoldistance_base_tmp = np.array([[p1.x, p1.y, p1.z]]).reshape(self.config.fc_obs_shape)
                 obs_extcoldistance_base = np.concatenate((obs_extcoldistance_base, obs_extcoldistance_base_tmp), axis=0)
         
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] obs_extcoldistance_base shape: " + str(obs_extcoldistance_base.shape))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] DEBUG INF")
-        while 1:
-            continue
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] obs_extcoldistance_base shape: " + str(obs_extcoldistance_base.shape))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_base] DEBUG INF")
+        #while 1:
+        #    continue
+
+        #self.publish_debug_visu(debug_point_data, extcoldistance_base_msg.frame_name)
         
         return obs_extcoldistance_base
     
@@ -1331,6 +1345,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def get_obs_extcoldistance_arm(self):
         extcoldistance_arm_msg = self.extcoldistance_arm_msg
 
+        #debug_point_data = []
         #obs_extcoldistance_arm = np.full((1, self.config.n_extcoldistance_arm), self.config.ext_collision_range_max).reshape(self.config.fc_obs_shape) # type: ignore
         obs_extcoldistance_arm = np.array([[extcoldistance_arm_msg.p1[0].x, 
                                             extcoldistance_arm_msg.p1[0].y, 
@@ -1340,16 +1355,28 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #p2 = {"x":csm.points[1].x, "y":csm.points[1].y, "z":csm.points[1].z}
             #dist = self.get_euclidean_distance_3D(p1, p2)
             #obs_extcoldistance_arm[i] = dist
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] dist " + str(i) + ": " + str(dist))
-        
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] p" + str(i) + ".x: " + str(p1.x))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] p" + str(i) + ".y: " + str(p1.y))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] p" + str(i) + ".z: " + str(p1.z))
+
+            '''
+            p = Point()
+            p.x = p1.x
+            p.y = p1.y
+            p.z = p1.z
+            debug_point_data.append(p)
+            '''
+
             if i > 0:
                 obs_extcoldistance_arm_tmp = np.array([[p1.x, p1.y, p1.z]]).reshape(self.config.fc_obs_shape)
                 obs_extcoldistance_arm = np.concatenate((obs_extcoldistance_arm, obs_extcoldistance_arm_tmp), axis=0)
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] obs_extcoldistance_arm shape: " + str(obs_extcoldistance_arm.shape))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] DEBUG INF")
-        while 1:
-            continue
+        #self.publish_debug_visu(debug_point_data, extcoldistance_arm_msg.frame_name)
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] obs_extcoldistance_arm shape: " + str(obs_extcoldistance_arm.shape))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_extcoldistance_arm] DEBUG INF")
+        #while 1:
+        #    continue
         
         return obs_extcoldistance_arm
     
@@ -1363,10 +1390,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         for i, jp in enumerate(self.arm_data["joint_pos"]):
             obs_armstate[i] = jp
 
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_armstate] obs_armstate shape: " + str(obs_armstate.shape))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_armstate] DEBUG INF")
-        while 1:
-            continue
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_armstate] obs_armstate shape: " + str(obs_armstate.shape))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::get_obs_armstate] DEBUG INF")
+        #while 1:
+        #    continue
         
         return obs_armstate
     
@@ -1523,11 +1550,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                                 "armstate": np.vstack([obs_armstate_min] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))} # type: ignore
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data occgrid shape: " + str(self.obs_data["occgrid"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data selfcoldistance shape: " + str(self.obs_data["selfcoldistance"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data extcoldistance_base shape: " + str(self.obs_data["extcoldistance_base"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data extcoldistance_arm shape: " + str(self.obs_data["extcoldistance_arm"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data goal shape: " + str(self.obs_data["goal"].shape))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data armstate shape: " + str(self.obs_data["armstate"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data selfcoldistance shape: " + str(self.obs_data["selfcoldistance"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data extcoldistance_base shape: " + str(self.obs_data["extcoldistance_base"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data extcoldistance_arm shape: " + str(self.obs_data["extcoldistance_arm"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data goal shape: " + str(self.obs_data["goal"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_data armstate shape: " + str(self.obs_data["armstate"].shape))
 
             #obs_stacked_occgrid_min = np.hstack([obs_occgrid_min] * self.config.n_obs_stack) # type: ignore
             #obs_stacked_occgrid_max = np.hstack([obs_occgrid_max] * self.config.n_obs_stack) # type: ignore
@@ -1539,7 +1566,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             obs_space_max = np.concatenate((obs_selfcoldistance_max, obs_collision_base_max, obs_collision_arm_max, obs_goal_max, obs_armstate_max), axis=0)
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_stacked_laser_low shape: " + str(obs_stacked_laser_low.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_space_low shape: " + str(obs_space_low.shape))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] obs_space_min shape: " + str(obs_space_min.shape))
 
             self.obs = obs_space_min
             self.observation_space = spaces.Box(obs_space_min, obs_space_max)
@@ -1639,7 +1666,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::init_observation_action_space] DEBUG INF")
         #while 1:
-        #    continue
+        #   continue
 
     '''
     DESCRIPTION: TODO...
@@ -1679,9 +1706,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                                 "armstate": np.vstack([obs_armstate] * (self.config.n_obs_stack * self.config.n_skip_obs_stack)), # type: ignore
                                 "goal": np.vstack([obs_goal] * (self.config.n_obs_stack * self.config.n_skip_obs_stack))} # type: ignore
 
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_occgrid shape: " + str(obs_occgrid.shape))
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_extcoldistancedist shape: " + str(obs_extcoldistancedist.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_selfcoldistance shape: " + str(obs_selfcoldistance.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_extcoldistance_base shape: " + str(obs_extcoldistance_base.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_extcoldistance_arm shape: " + str(obs_extcoldistance_arm.shape))
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_goal shape: " + str(obs_goal.shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_armstate shape: " + str(obs_armstate.shape))
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_data laser shape: " + str(self.obs_data["occgrid"].shape))
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs_data target shape: " + str(self.obs_data["extcoldistancedist"].shape))
@@ -1696,6 +1725,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.obs = np.concatenate((obs_selfcoldistance, obs_extcoldistance_base, obs_extcoldistance_arm, obs_goal, obs_armstate), axis=0)
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] obs: " + str(self.obs.shape))
+
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] DEBUG INF")
+            #while 1:
+            #    continue
 
         elif self.config.observation_space_type == "mobiman_2DCNN_FC":
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::reinit_observation] mobiman_2DCNN_FC")
@@ -1785,7 +1818,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.obs_data["goal"] = np.vstack((self.obs_data["goal"], obs_goal))
             self.obs_data["goal"] = np.delete(self.obs_data["goal"], np.s_[0], axis=0)
 
-            self.obs_data["armstate"] = np.vstack((self.obs_data["armstate"], obs_goal))
+            self.obs_data["armstate"] = np.vstack((self.obs_data["armstate"], obs_armstate))
             self.obs_data["armstate"] = np.delete(self.obs_data["armstate"], np.s_[0], axis=0)
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data occgrid shape: " + str(self.obs_data["occgrid"].shape))
@@ -1793,6 +1826,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data extcoldistance_base shape: " + str(self.obs_data["extcoldistance_base"].shape))
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data extcoldistance_arm shape: " + str(self.obs_data["extcoldistance_arm"].shape))
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data goal shape: " + str(self.obs_data["goal"].shape))
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_observation] obs_data armstate shape: " + str(self.obs_data["armstate"].shape))
 
             # Update observation
             '''
@@ -1944,13 +1978,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def publish_debug_visu(self, debug_point_data):
+    def publish_debug_visu(self, debug_point_data, frame_name=""):
 
+        if frame_name == "":
+            frame_name = self.config.world_frame_name
+        
         debug_visu = MarkerArray()
-
         for i, dp in enumerate(debug_point_data):
             marker = Marker()
-            marker.header.frame_id = self.config.world_frame_name
+            marker.header.frame_id = frame_name
             marker.ns = str(i)
             marker.id = i
             marker.type = marker.SPHERE
