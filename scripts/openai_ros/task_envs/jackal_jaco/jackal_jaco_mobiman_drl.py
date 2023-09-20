@@ -676,32 +676,37 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             (self.trans_robot_wrt_world, self.rot_robot_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.robot_frame_name, rospy.Time(0))
             self.update_robot_data()
         except Exception as e0:
-            print(e0)
+            #print(e0)
+            ...
         
         try:
             self.listener.waitForTransform(target_frame=self.config.world_frame_name, source_frame=self.config.ee_frame_name, time=rospy.Time(0), timeout=rospy.Duration(1))
             (self.trans_ee_wrt_world, self.rot_ee_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.ee_frame_name, rospy.Time(0))
             self.update_arm_data()
         except Exception as e1:
-            print(e1)            
+            #print(e1) 
+            ...           
         
         try:
             (self.trans_goal_wrt_world, self.rot_goal_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.goal_frame_name, rospy.Time(0))
             self.update_goal_data()
         except Exception as e2:
-            print(e2)
+            #print(e2)
+            ...
         
         try:
             (self.trans_goal_wrt_robot, self.rot_goal_wrt_robot) = self.listener.lookupTransform(self.config.robot_frame_name, self.config.goal_frame_name, rospy.Time(0))
             self.update_goal_data_wrt_robot()
         except Exception as e3:
-            print(e3)
+            #print(e3)
+            ...
         
         try:
             (self.trans_goal_wrt_ee, self.rot_goal_wrt_ee) = self.listener.lookupTransform(self.config.ee_frame_name, self.config.goal_frame_name, rospy.Time(0))
             self.update_goal_data_wrt_ee()
         except Exception as e4:
-            print(e4)
+            #print(e4)
+            ...
 
     '''
     DESCRIPTION: TODO...
