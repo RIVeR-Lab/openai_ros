@@ -94,6 +94,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.total_mpc_exit = 0
         self.total_target = 0
         self.total_time_horizon = 0
+        self.total_last_step_distance = 0
         self.step_reward = 0.0
         self.episode_reward = 0.0
         self.step_action = None
@@ -135,7 +136,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #rospy.Subscriber(self.config.imu_msg_name, Imu, self.callback_imu)
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] Waiting for /tf...")
         rospy.wait_for_message('/tf', TransformStamped)
-        rospy.Subscriber("/tf", TransformStamped, self.callback_tf)
+        #rospy.Subscriber("/tf", TransformStamped, self.callback_tf)
+        self.timer = rospy.Timer(rospy.Duration(0.05), self.callback_update) # type: ignore
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] Waiting for " + self.config.arm_state_msg_name + "...") # type: ignore
         rospy.wait_for_message(self.config.arm_state_msg_name, JointState)
@@ -307,6 +309,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 last_action = [1, 1, self.goal_data["x"], self.goal_data["y"], self.goal_data["z"], self.goal_data["roll"], self.goal_data["pitch"], self.goal_data["yaw"]]
                 success = self.client_set_action_drl(last_action, True)
 
+                self.total_last_step_distance += 1
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting LAST mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
                 #rospy.sleep(self.config.action_time_horizon)
                 while not self.mpc_action_complete:
@@ -315,10 +318,18 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         
         elif self.config.ablation_mode == 1:
             distance2goal = self.get_base_distance2goal_2D()
+
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] distance2goal: " + str(distance2goal))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] last_step_distance_threshold: " + str(self.config.last_step_distance_threshold))
+            
             if distance2goal < self.config.last_step_distance_threshold: # type: ignore
                 last_action = [action[0], action[1], self.goal_data["x"], self.goal_data["y"], self.goal_data["z"], self.goal_data["roll"], self.goal_data["pitch"], self.goal_data["yaw"]]
+                
+                self.total_last_step_distance += 1
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] WITHIN THE DIST, SETTING TARGET TO GOAL!" )
                 success = self.client_set_action_drl(last_action, True)
             else:
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] REGULAR TARGET..." )
                 success = self.client_set_action_drl(action)
   
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
@@ -486,6 +497,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_collisions: {}".format(self.total_collisions))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_rollover: {}".format(self.total_rollover))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_goal: {}".format(self.total_goal))
+        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_last_step_distance: {}".format(self.total_last_step_distance))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_max_step: {}".format(self.total_max_step))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_mpc_exit: {}".format(self.total_mpc_exit))
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] total_target: {}".format(self.total_target))
@@ -614,15 +626,83 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def callback_tf(self, msg):
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::callback_tf] INCOMING")
         try:
+            self.listener.waitForTransform(target_frame=self.config.world_frame_name, source_frame=self.config.robot_frame_name, time=rospy.Time(0), timeout=rospy.Duration(1))
             (self.trans_robot_wrt_world, self.rot_robot_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.robot_frame_name, rospy.Time(0))
+        except Exception as e:
+            print(e)
+        try:
+            self.listener.waitForTransform(target_frame=self.config.world_frame_name, source_frame=self.config.ee_frame_name, time=rospy.Time(0), timeout=rospy.Duration(1))
             (self.trans_ee_wrt_world, self.rot_ee_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.ee_frame_name, rospy.Time(0))
+        except Exception as e:
+            print(e)            
+        try:
             (self.trans_goal_wrt_world, self.rot_goal_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.goal_frame_name, rospy.Time(0))
+        except Exception as e:
+            print(e)
+        try:
             (self.trans_goal_wrt_robot, self.rot_goal_wrt_robot) = self.listener.lookupTransform(self.config.robot_frame_name, self.config.goal_frame_name, rospy.Time(0))
+        except Exception as e:
+            print(e)
+        try:
             (self.trans_goal_wrt_ee, self.rot_goal_wrt_ee) = self.listener.lookupTransform(self.config.ee_frame_name, self.config.goal_frame_name, rospy.Time(0))
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::callback_tf] ERROR: No tf transform!")
-            ...
+        except Exception as e:
+            print(e)
+        self.update_robot_data()
+        '''
+        try:
+            # self.update_robot_data()
+        except Exception as e:
+            pass
+        self.update_arm_data()
+        self.update_goal_data()
+        self.update_target_data()
+        '''
+        # except Exception as e:
+        #     print(e)
+        # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        #     print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::callback_tf] ERROR: No tf transform!")
+        #    
+        # except Exception as e:
+        #     print(e)
     
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def callback_update(self, event):
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::callback_update] START")
+
+        try:
+            self.listener.waitForTransform(target_frame=self.config.world_frame_name, source_frame=self.config.robot_frame_name, time=rospy.Time(0), timeout=rospy.Duration(1))
+            (self.trans_robot_wrt_world, self.rot_robot_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.robot_frame_name, rospy.Time(0))
+            self.update_robot_data()
+        except Exception as e0:
+            print(e0)
+        
+        try:
+            self.listener.waitForTransform(target_frame=self.config.world_frame_name, source_frame=self.config.ee_frame_name, time=rospy.Time(0), timeout=rospy.Duration(1))
+            (self.trans_ee_wrt_world, self.rot_ee_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.ee_frame_name, rospy.Time(0))
+            self.update_arm_data()
+        except Exception as e1:
+            print(e1)            
+        
+        try:
+            (self.trans_goal_wrt_world, self.rot_goal_wrt_world) = self.listener.lookupTransform(self.config.world_frame_name, self.config.goal_frame_name, rospy.Time(0))
+            self.update_goal_data()
+        except Exception as e2:
+            print(e2)
+        
+        try:
+            (self.trans_goal_wrt_robot, self.rot_goal_wrt_robot) = self.listener.lookupTransform(self.config.robot_frame_name, self.config.goal_frame_name, rospy.Time(0))
+            self.update_goal_data_wrt_robot()
+        except Exception as e3:
+            print(e3)
+        
+        try:
+            (self.trans_goal_wrt_ee, self.rot_goal_wrt_ee) = self.listener.lookupTransform(self.config.ee_frame_name, self.config.goal_frame_name, rospy.Time(0))
+            self.update_goal_data_wrt_ee()
+        except Exception as e4:
+            print(e4)
+
     '''
     DESCRIPTION: TODO...
     '''
@@ -648,6 +728,20 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def callback_armstate(self, msg):
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::callback_armstate] INCOMING")
         self.armstate_msg = msg
+
+        armstate_msg = self.armstate_msg
+        self.arm_data["joint_name"] = self.config.arm_joint_names
+
+        self.arm_data["joint_pos"] = []
+        for i, jname in enumerate(self.config.arm_joint_names): # type: ignore
+            idx = armstate_msg.name.index(jname)
+            jp = armstate_msg.position[idx]
+            # Normalize yaw difference to be within range of -pi to pi
+            while jp > math.pi:
+                jp -= 2*math.pi
+            while jp < -math.pi:
+                jp += 2*math.pi
+            self.arm_data["joint_pos"].append(jp)
 
     '''
     DESCRIPTION: TODO...
@@ -819,6 +913,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.arm_data["pitch"] = e[1]
         self.arm_data["yaw"] = e[2]
         
+        '''
         armstate_msg = self.armstate_msg
         self.arm_data["joint_name"] = self.config.arm_joint_names
 
@@ -832,6 +927,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             while jp < -math.pi:
                 jp += 2*math.pi
             self.arm_data["joint_pos"].append(jp)
+        '''
 
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] x: " + str(self.arm_data["x"]))
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] y: " + str(self.arm_data["y"]))
@@ -840,11 +936,155 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] qy: " + str(self.arm_data["qy"]))
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] qz: " + str(self.arm_data["qz"]))
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] qw: " + str(self.arm_data["qw"]))
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] joint_name: ")
-        print(self.arm_data["joint_name"])
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] joint_pos: ")
-        print(self.arm_data["joint_pos"])
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] joint_name: ")
+        #print(self.arm_data["joint_name"])
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] joint_pos: ")
+        #print(self.arm_data["joint_pos"])
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_arm_data] END" )
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def update_goal_data(self):
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] START")
+        
+        translation_wrt_world = self.trans_goal_wrt_world
+        rotation_wrt_world = self.rot_goal_wrt_world
+        
+        self.goal_data["x"] = translation_wrt_world[0] # type: ignore
+        self.goal_data["y"] = translation_wrt_world[1] # type: ignore
+        self.goal_data["z"] = translation_wrt_world[2] # type: ignore
+        self.goal_data["qx"] = rotation_wrt_world[0] # type: ignore
+        self.goal_data["qy"] = rotation_wrt_world[1] # type: ignore
+        self.goal_data["qz"] = rotation_wrt_world[2] # type: ignore
+        self.goal_data["qw"] = rotation_wrt_world[3] # type: ignore
+
+        q = Quaternion(rotation_wrt_world[3], rotation_wrt_world[0], rotation_wrt_world[1], rotation_wrt_world[2]) # type: ignore
+        e = q.to_euler(degrees=False)
+        self.goal_data["roll"] = e[0] # type: ignore
+        self.goal_data["pitch"] = e[1] # type: ignore
+        self.goal_data["yaw"] = e[2] # type: ignore
+
+        '''
+        p = Point()
+        p.x = self.goal_data["x"]
+        p.y = self.goal_data["y"]
+        p.z = self.goal_data["z"]
+        debug_point_data = [p]
+        self.publish_debug_visu(debug_point_data)
+        '''
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] x: " + str(self.goal_data["x"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] y: " + str(self.goal_data["y"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] z: " + str(self.goal_data["z"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qx: " + str(self.goal_data["qx"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qy: " + str(self.goal_data["qy"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qz: " + str(self.goal_data["qz"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qw: " + str(self.goal_data["qw"]))
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] END")
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def update_goal_data_wrt_robot(self):
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] START")
+
+        translation_wrt_robot = self.trans_goal_wrt_robot
+        rotation_wrt_robot = self.rot_goal_wrt_robot
+
+        self.goal_data["x_wrt_robot"] = translation_wrt_robot[0] # type: ignore
+        self.goal_data["y_wrt_robot"] = translation_wrt_robot[1] # type: ignore
+        self.goal_data["z_wrt_robot"] = translation_wrt_robot[2] # type: ignore
+        self.goal_data["qx_wrt_robot"] = rotation_wrt_robot[0] # type: ignore
+        self.goal_data["qy_wrt_robot"] = rotation_wrt_robot[1] # type: ignore
+        self.goal_data["qz_wrt_robot"] = rotation_wrt_robot[2] # type: ignore
+        self.goal_data["qw_wrt_robot"] = rotation_wrt_robot[3] # type: ignore
+
+        '''
+        p = Point()
+        p.x = self.goal_data["x"]
+        p.y = self.goal_data["y"]
+        p.z = self.goal_data["z"]
+        debug_point_data = [p]
+        self.publish_debug_visu(debug_point_data)
+        '''
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] x_wrt_robot: " + str(self.goal_data["x_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] y_wrt_robot: " + str(self.goal_data["y_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] z_wrt_robot: " + str(self.goal_data["z_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] qx_wrt_robot: " + str(self.goal_data["qx_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] qy_wrt_robot: " + str(self.goal_data["qy_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] qz_wrt_robot: " + str(self.goal_data["qz_wrt_robot"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_robot] qw_wrt_robot: " + str(self.goal_data["qw_wrt_robot"]))
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def update_goal_data_wrt_ee(self):
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] START")
+
+        translation_wrt_ee = self.trans_goal_wrt_ee
+        rotation_wrt_ee = self.rot_goal_wrt_ee
+
+        self.goal_data["x_wrt_ee"] = translation_wrt_ee[0] # type: ignore
+        self.goal_data["y_wrt_ee"] = translation_wrt_ee[1] # type: ignore
+        self.goal_data["z_wrt_ee"] = translation_wrt_ee[2] # type: ignore
+        self.goal_data["qx_wrt_ee"] = rotation_wrt_ee[0] # type: ignore
+        self.goal_data["qy_wrt_ee"] = rotation_wrt_ee[1] # type: ignore
+        self.goal_data["qz_wrt_ee"] = rotation_wrt_ee[2] # type: ignore
+        self.goal_data["qw_wrt_ee"] = rotation_wrt_ee[3] # type: ignore
+
+        '''
+        p = Point()
+        p.x = self.goal_data["x"]
+        p.y = self.goal_data["y"]
+        p.z = self.goal_data["z"]
+        debug_point_data = [p]
+        self.publish_debug_visu(debug_point_data)
+        '''
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] x_wrt_ee: " + str(self.goal_data["x_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] y_wrt_ee: " + str(self.goal_data["y_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] z_wrt_ee: " + str(self.goal_data["z_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] qx_wrt_ee: " + str(self.goal_data["qx_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] qy_wrt_ee: " + str(self.goal_data["qy_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] qz_wrt_ee: " + str(self.goal_data["qz_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] qw_wrt_ee: " + str(self.goal_data["qw_wrt_ee"]))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data_wrt_ee] END")
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def update_target_data(self):
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] START")
+        if self.target_msg:
+            target_msg = self.target_msg
+
+            ## NUA TODO: Generalize to multiple target points!
+            self.target_data["x"] = target_msg.markers[0].pose.position.x
+            self.target_data["y"] = target_msg.markers[0].pose.position.y
+            self.target_data["z"] = target_msg.markers[0].pose.position.z
+            self.target_data["qx"] = target_msg.markers[0].pose.orientation.x
+            self.target_data["qy"] = target_msg.markers[0].pose.orientation.y
+            self.target_data["qz"] = target_msg.markers[0].pose.orientation.z
+            self.target_data["qw"] = target_msg.markers[0].pose.orientation.w
+
+            q = Quaternion(target_msg.markers[0].pose.orientation.w, target_msg.markers[0].pose.orientation.x, target_msg.markers[0].pose.orientation.y, target_msg.markers[0].pose.orientation.z) # type: ignore
+            e = q.to_euler(degrees=False)
+            self.target_data["roll"] = e[0] # type: ignore
+            self.target_data["pitch"] = e[1] # type: ignore
+            self.target_data["yaw"] = e[2] # type: ignore
+
+            '''
+            p = Point()
+            p.x = self.target_data["x"]
+            p.y = self.target_data["y"]
+            p.z = self.target_data["z"]
+            debug_point_data = [p]
+            self.publish_debug_visu(debug_point_data)
+            '''
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] END")
 
     '''
     DESCRIPTION: TODO... Check if the goal is reached
@@ -924,118 +1164,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def update_goal_data(self):
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] START")
-        
-        translation_wrt_world = self.trans_goal_wrt_world
-        rotation_wrt_world = self.rot_goal_wrt_world
-
-        translation_wrt_robot = self.trans_goal_wrt_robot
-        rotation_wrt_robot = self.rot_goal_wrt_robot
-
-        translation_wrt_ee = self.trans_goal_wrt_ee
-        rotation_wrt_ee = self.rot_goal_wrt_ee
-        
-        self.goal_data["x"] = translation_wrt_world[0] # type: ignore
-        self.goal_data["y"] = translation_wrt_world[1] # type: ignore
-        self.goal_data["z"] = translation_wrt_world[2] # type: ignore
-        self.goal_data["qx"] = rotation_wrt_world[0] # type: ignore
-        self.goal_data["qy"] = rotation_wrt_world[1] # type: ignore
-        self.goal_data["qz"] = rotation_wrt_world[2] # type: ignore
-        self.goal_data["qw"] = rotation_wrt_world[3] # type: ignore
-
-        q = Quaternion(rotation_wrt_world[3], rotation_wrt_world[0], rotation_wrt_world[1], rotation_wrt_world[2]) # type: ignore
-        e = q.to_euler(degrees=False)
-        self.goal_data["roll"] = e[0] # type: ignore
-        self.goal_data["pitch"] = e[1] # type: ignore
-        self.goal_data["yaw"] = e[2] # type: ignore
-
-        self.goal_data["x_wrt_robot"] = translation_wrt_robot[0] # type: ignore
-        self.goal_data["y_wrt_robot"] = translation_wrt_robot[1] # type: ignore
-        self.goal_data["z_wrt_robot"] = translation_wrt_robot[2] # type: ignore
-        self.goal_data["qx_wrt_robot"] = rotation_wrt_robot[0] # type: ignore
-        self.goal_data["qy_wrt_robot"] = rotation_wrt_robot[1] # type: ignore
-        self.goal_data["qz_wrt_robot"] = rotation_wrt_robot[2] # type: ignore
-        self.goal_data["qw_wrt_robot"] = rotation_wrt_robot[3] # type: ignore
-
-        self.goal_data["x_wrt_ee"] = translation_wrt_ee[0] # type: ignore
-        self.goal_data["y_wrt_ee"] = translation_wrt_ee[1] # type: ignore
-        self.goal_data["z_wrt_ee"] = translation_wrt_ee[2] # type: ignore
-        self.goal_data["qx_wrt_ee"] = rotation_wrt_ee[0] # type: ignore
-        self.goal_data["qy_wrt_ee"] = rotation_wrt_ee[1] # type: ignore
-        self.goal_data["qz_wrt_ee"] = rotation_wrt_ee[2] # type: ignore
-        self.goal_data["qw_wrt_ee"] = rotation_wrt_ee[3] # type: ignore
-
-        '''
-        p = Point()
-        p.x = self.goal_data["x"]
-        p.y = self.goal_data["y"]
-        p.z = self.goal_data["z"]
-        debug_point_data = [p]
-        self.publish_debug_visu(debug_point_data)
-        '''
-
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] x: " + str(self.goal_data["x"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] y: " + str(self.goal_data["y"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] z: " + str(self.goal_data["z"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qx: " + str(self.goal_data["qx"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qy: " + str(self.goal_data["qy"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qz: " + str(self.goal_data["qz"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qw: " + str(self.goal_data["qw"]))
-
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] x_wrt_robot: " + str(self.goal_data["x_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] y_wrt_robot: " + str(self.goal_data["y_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] z_wrt_robot: " + str(self.goal_data["z_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qx_wrt_robot: " + str(self.goal_data["qx_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qy_wrt_robot: " + str(self.goal_data["qy_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qz_wrt_robot: " + str(self.goal_data["qz_wrt_robot"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qw_wrt_robot: " + str(self.goal_data["qw_wrt_robot"]))
-
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] x_wrt_ee: " + str(self.goal_data["x_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] y_wrt_ee: " + str(self.goal_data["y_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] z_wrt_ee: " + str(self.goal_data["z_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qx_wrt_ee: " + str(self.goal_data["qx_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qy_wrt_ee: " + str(self.goal_data["qy_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qz_wrt_ee: " + str(self.goal_data["qz_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] qw_wrt_ee: " + str(self.goal_data["qw_wrt_ee"]))
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_goal_data] END")
-
-    '''
-    DESCRIPTION: TODO...
-    '''
-    def update_target_data(self):
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] START")
-        if self.target_msg:
-            target_msg = self.target_msg
-
-            ## NUA TODO: Generalize to multiple target points!
-            self.target_data["x"] = target_msg.markers[0].pose.position.x
-            self.target_data["y"] = target_msg.markers[0].pose.position.y
-            self.target_data["z"] = target_msg.markers[0].pose.position.z
-            self.target_data["qx"] = target_msg.markers[0].pose.orientation.x
-            self.target_data["qy"] = target_msg.markers[0].pose.orientation.y
-            self.target_data["qz"] = target_msg.markers[0].pose.orientation.z
-            self.target_data["qw"] = target_msg.markers[0].pose.orientation.w
-
-            q = Quaternion(target_msg.markers[0].pose.orientation.w, target_msg.markers[0].pose.orientation.x, target_msg.markers[0].pose.orientation.y, target_msg.markers[0].pose.orientation.z) # type: ignore
-            e = q.to_euler(degrees=False)
-            self.target_data["roll"] = e[0] # type: ignore
-            self.target_data["pitch"] = e[1] # type: ignore
-            self.target_data["yaw"] = e[2] # type: ignore
-
-            '''
-            p = Point()
-            p.x = self.target_data["x"]
-            p.y = self.target_data["y"]
-            p.z = self.target_data["z"]
-            debug_point_data = [p]
-            self.publish_debug_visu(debug_point_data)
-            '''
-        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] END")
-
-    '''
-    DESCRIPTION: TODO...
-    '''
     def get_euclidean_distance_2D(self, p1, p2={"x":0.0, "y":0.0}):
         return math.sqrt((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)
 
@@ -1075,6 +1203,21 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def get_base_distance2goal_2D(self):
         distance2goal = self.get_euclidean_distance_2D(self.goal_data, self.robot_data)
+
+        pp1 = Point()
+        pp1.x = self.goal_data["x"]
+        pp1.y = self.goal_data["y"]
+        pp1.z = self.goal_data["z"]
+
+        pp2 = Point()
+        pp2.x = self.robot_data["x"]
+        pp2.y = self.robot_data["y"]
+        pp2.z = self.robot_data["z"]
+ 
+        debug_point_data = [pp1, pp2]
+        for i in range(1, 100):
+            self.publish_debug_visu(debug_point_data)
+
         return distance2goal
     
     '''
@@ -2051,6 +2194,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.mpc_action_result = req.action_result
             
         if self.mpc_action_result == 0:
+            self.termination_reason = 'mpc_exit'
             self.total_mpc_exit += 1
         elif self.mpc_action_result == 1:
             self.termination_reason = 'collision'
@@ -2066,8 +2210,10 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self._reached_goal = True
             self._episode_done = True
         elif self.mpc_action_result == 4:
+            self.termination_reason = 'target'
             self.total_target += 1
         elif self.mpc_action_result == 5:
+            self.termination_reason = 'time_horizon'
             self.total_time_horizon += 1
         
         self.model_mode = req.model_mode
