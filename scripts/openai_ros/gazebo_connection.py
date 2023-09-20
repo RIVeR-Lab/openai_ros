@@ -441,7 +441,7 @@ class GazeboConnection():
             print("Error terminating process unpause")
         msg = None
         try:
-            msg = rospy.wait_for_message('/joint_states', JointState, timeout=rospy.Duration(2.0))
+            msg = rospy.wait_for_message('/joint_states', JointState, timeout=rospy.Duration(2.0)) # type: ignore
         except Exception as e:
             ### So that if we get exception from ros for not finding the joint state message
             ### the program won't crash.

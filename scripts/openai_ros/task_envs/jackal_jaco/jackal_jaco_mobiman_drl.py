@@ -306,6 +306,9 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             distance2goal = self.get_base_distance2goal_2D()
             if distance2goal < self.config.last_step_distance_threshold: # type: ignore
                 
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] distance2goal: " + str(distance2goal))
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] last_step_distance_threshold: " + str(self.config.last_step_distance_threshold))
+
                 last_action = [1, 1, self.goal_data["x"], self.goal_data["y"], self.goal_data["z"], self.goal_data["roll"], self.goal_data["pitch"], self.goal_data["yaw"]]
                 success = self.client_set_action_drl(last_action, True)
 
