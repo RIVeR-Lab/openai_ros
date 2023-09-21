@@ -112,6 +112,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.idx = 1
         self.termination_reason = ''
         self.model_mode = -1
+        self.dt_action = 0.0
         
         self.init_robot_pose = {}
         self.robot_data = {}
@@ -297,8 +298,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
             #rospy.sleep(self.config.action_time_horizon)
+            time_start = time.time()
             while not self.mpc_action_complete:
                 continue
+            time_end = time.time()
+            self.dt_action = time_end - time_start
             self.mpc_action_complete = False
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] mpc_action_result: " + str(self.mpc_action_result))
@@ -308,15 +312,19 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] distance2goal: " + str(distance2goal))
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] last_step_distance_threshold: " + str(self.config.last_step_distance_threshold))
-
+                
+                
                 last_action = [1, 1, self.goal_data["x"], self.goal_data["y"], self.goal_data["z"], self.goal_data["roll"], self.goal_data["pitch"], self.goal_data["yaw"]]
                 success = self.client_set_action_drl(last_action, True)
 
                 self.total_last_step_distance += 1
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting LAST mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
                 #rospy.sleep(self.config.action_time_horizon)
+                time_start = time.time()
                 while not self.mpc_action_complete:
                     continue
+                time_end = time.time()
+                self.dt_action += time_end - time_start
                 self.mpc_action_complete = False
         
         elif self.config.ablation_mode == 1:
@@ -337,8 +345,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
   
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] Waiting mpc_action_complete for " + str(self.config.action_time_horizon) + " sec...")
             #rospy.sleep(self.config.action_time_horizon)
+            time_start = time.time()
             while not self.mpc_action_complete:
                 continue
+            time_end = time.time()
+            self.dt_action = time_end - time_start
             self.mpc_action_complete = False
 
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_set_action] DEBUG INF")
@@ -391,11 +402,11 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             elif self.termination_reason == 'max_step':
                 self.step_reward = self.config.reward_terminal_max_step
             else:
-                ### NUA TODO: ADD A NEW REWARD!
+                ### NUA NOTE: CHECK THE STATE IS REACHABLE!
                 self.step_reward = self.config.reward_terminal_collision
-                #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
-                #while 1:
-                #    continue
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
+                while 1:
+                    continue
 
             self.goal_status.data = False
             self.goal_status_pub.publish(self.goal_status)
@@ -457,18 +468,16 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 reward_step_mpc = self.config.reward_step_mpc_exit
             elif self.mpc_action_result == 4:
                 reward_step_mpc = reward_step_target
+            #elif self.mpc_action_result == 5:
+            #    reward_step_mpc = self.reward_func(0, self.config.action_time_horizon, 
+            #                                       self.config.reward_step_time_horizon_min, self.config.reward_step_time_horizon_max, 
+            #                                       self.dt_action)
             weighted_reward_mpc = self.config.alpha_step_mpc_exit * reward_step_mpc # type: ignore
-            
+
             # Total Step Reward
             self.step_reward = weighted_reward_step_goal_base + weighted_reward_step_goal_ee + weighted_reward_step_target + weighted_reward_step_mode + weighted_reward_mpc
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
-
-            '''
-            time_now = time.time()
-            dt = time_now - self.time_old
-            self.time_old = time_now
-            '''
         
         self.episode_reward += self.step_reward # type: ignore
 
