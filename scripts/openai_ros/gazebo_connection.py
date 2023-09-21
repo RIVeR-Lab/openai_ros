@@ -447,7 +447,7 @@ class GazeboConnection():
             ### the program won't crash.
             pass
         if msg == None:
-            self.reset_robot() # type: ignore
+            self.resetRobot() # type: ignore
         
         # rospy.sleep(1)
         #print("[gazebo_connection::GazeboConnection::resetRobot] DEBUG INF")
