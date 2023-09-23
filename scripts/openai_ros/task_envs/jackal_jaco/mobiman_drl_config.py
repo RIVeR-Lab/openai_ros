@@ -155,7 +155,8 @@ class Config():
 
             self.alpha_step_goal_base = rospy.get_param('alpha_step_goal_base', 0.0)
             self.alpha_step_goal_ee = rospy.get_param('alpha_step_goal_ee', 0.0)
-            self.alpha_step_target = rospy.get_param('alpha_step_target', 0.0)
+            self.alpha_step_target_pos = rospy.get_param('alpha_step_target_pos', 0.0)
+            self.alpha_step_target_ori = rospy.get_param('alpha_step_target_ori', 0.0)
             self.alpha_step_mode = rospy.get_param('alpha_step_mode', 0.0)
             self.alpha_step_mpc_exit = rospy.get_param('alpha_step_mpc_exit', 0.0)
             
@@ -231,7 +232,8 @@ class Config():
                 training_log_data.append(["reward_step_time_horizon_max", self.reward_step_time_horizon_max])
                 training_log_data.append(["alpha_step_goal_base", self.alpha_step_goal_base])
                 training_log_data.append(["alpha_step_goal_ee", self.alpha_step_goal_ee])
-                training_log_data.append(["alpha_step_target", self.alpha_step_target])
+                training_log_data.append(["alpha_step_target_pos", self.alpha_step_target_pos])
+                training_log_data.append(["alpha_step_target_ori", self.alpha_step_target_ori])
                 training_log_data.append(["alpha_step_mode", self.alpha_step_mode])
                 training_log_data.append(["alpha_step_mpc_exit", self.alpha_step_mpc_exit])
 
@@ -385,7 +387,8 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] reward_step_time_horizon_max: " + str(self.reward_step_time_horizon_max))
         print("[mobiman_drl_config::Config::__init__] alpha_step_goal_base: " + str(self.alpha_step_goal_base))
         print("[mobiman_drl_config::Config::__init__] alpha_step_goal_ee: " + str(self.alpha_step_goal_ee))
-        print("[mobiman_drl_config::Config::__init__] alpha_step_target: " + str(self.alpha_step_target))
+        print("[mobiman_drl_config::Config::__init__] alpha_step_target_pos: " + str(self.alpha_step_target_pos))
+        print("[mobiman_drl_config::Config::__init__] alpha_step_target_ori: " + str(self.alpha_step_target_ori))
         print("[mobiman_drl_config::Config::__init__] alpha_step_mode: " + str(self.alpha_step_mode))
         print("[mobiman_drl_config::Config::__init__] alpha_step_mpc_exit: " + str(self.alpha_step_mpc_exit))
 

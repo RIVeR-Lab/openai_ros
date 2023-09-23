@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-LAST UPDATE: 2023.09.15
+LAST UPDATE: 2023.09.23
 
 AUTHOR: Neset Unver Akmandor (NUA)
 
@@ -262,7 +262,7 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     def _get_obs(self):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] START")
-        print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] total_step_num: " + str(self.total_step_num))
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_get_obs] total_step_num: " + str(self.total_step_num))
 
         # Update data
         self.update_robot_data()
@@ -395,7 +395,6 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if self._episode_done and (not self._reached_goal):
 
             if self.termination_reason == 'collision':
-
                 self.step_reward = self.config.reward_terminal_collision
             elif self.termination_reason == 'rollover':
                 self.step_reward = self.config.reward_terminal_roll
@@ -405,8 +404,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 ### NUA NOTE: CHECK THE STATE IS REACHABLE!
                 self.step_reward = self.config.reward_terminal_collision
                 print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] DEBUG INF")
-                while 1:
-                    continue
+                #while 1:
+                #    continue
 
             self.goal_status.data = False
             self.goal_status_pub.publish(self.goal_status)
@@ -425,6 +424,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.training_data.append([self.episode_reward])
 
         else:
+            # Step Reward 0: previous vs. current target to goal
+            current_target2goal = self.get_euclidean_distance_3D(self.target_data, self.goal_data)
+            diff_target2goal = self.prev_target2goal - current_target2goal
+            reward_step_goal_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, diff_target2goal)
+            self.prev_target2goal = current_target2goal
+
             # Step Reward 1: base to goal
             current_base_distance2goal = self.get_base_distance2goal_3D()
             reward_step_goal_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_base_distance2goal)
@@ -439,14 +444,15 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             weighted_reward_step_goal_ee = self.config.alpha_step_goal_ee * reward_step_goal_ee # type: ignore
 
             # Step Reward 3: ee to target
-            current_ee_distance2target = self.get_arm_distance2target_3D()
-            current_ee_oridistance2target = self.get_arm_quatdistance2target()
-            ori_range_max = 1
+            current_ee_distance2target_pos = self.get_arm_distance2target_3D()
+            current_ee_distance2target_ori = self.get_arm_quatdistance2target()
             if self.model_mode == 0:
-                current_ee_distance2target = self.get_base_distance2target_2D()
-                current_ee_oridistance2target = self.get_base_yawdistance2target()
-            reward_step_target = self.reward_func(0, self.config.goal_range_max_x + ori_range_max, 0, self.config.reward_step_target, current_ee_distance2target + current_ee_oridistance2target) # type: ignore
-            weighted_reward_step_target = self.config.alpha_step_target * reward_step_target # type: ignore
+                current_ee_distance2target_pos = self.get_base_distance2target_2D()
+                current_ee_distance2target_ori = self.get_base_yawdistance2target()
+            reward_step_target_pos = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_target, current_ee_distance2target_pos) # type: ignore
+            reward_step_target_ori = self.reward_func(0, 1.0, 0, self.config.reward_step_target, current_ee_distance2target_ori) # type: ignore
+            weighted_reward_step_target_pos = self.config.alpha_step_target_pos * reward_step_target_pos # type: ignore
+            weighted_reward_step_target_ori = self.config.alpha_step_target_pos * reward_step_target_ori # type: ignore
             
             # Step Reward 4: model mode
             reward_step_mode = 0
@@ -466,16 +472,16 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             reward_step_mpc = 0
             if self.mpc_action_result == 0:
                 reward_step_mpc = self.config.reward_step_mpc_exit
-            elif self.mpc_action_result == 4:
-                reward_step_mpc = reward_step_target
-            #elif self.mpc_action_result == 5:
-            #    reward_step_mpc = self.reward_func(0, self.config.action_time_horizon, 
-            #                                       self.config.reward_step_time_horizon_min, self.config.reward_step_time_horizon_max, 
-            #                                       self.dt_action)
+            #elif self.mpc_action_result == 4:
+            #    reward_step_mpc = reward_step_target_pos + reward_step_target_ori # type: ignore
+            elif self.mpc_action_result == 4 or self.mpc_action_result == 5:
+                reward_step_mpc = self.reward_func(0, self.config.action_time_horizon, 
+                                                   self.config.reward_step_time_horizon_min, self.config.reward_step_time_horizon_max, 
+                                                   self.dt_action)
             weighted_reward_mpc = self.config.alpha_step_mpc_exit * reward_step_mpc # type: ignore
 
             # Total Step Reward
-            self.step_reward = weighted_reward_step_goal_base + weighted_reward_step_goal_ee + weighted_reward_step_target + weighted_reward_step_mode + weighted_reward_mpc
+            self.step_reward = weighted_reward_step_goal_base + weighted_reward_step_goal_ee + weighted_reward_step_target_pos + weighted_reward_step_target_ori + weighted_reward_step_mode + weighted_reward_mpc
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
         
@@ -1335,7 +1341,20 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def reward_func(self, x_min, x_max, y_min, y_max, x_query):
+    def reward_func_linear_decreasing(self, x_min, x_max, y_min, y_max, x_query):
+        reward = 0
+        if x_query < x_min:
+            reward = y_max
+        elif x_query > x_max:
+            reward = y_min
+        else:
+            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min) + y_max
+        return reward
+    
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def reward_func_linear_increasing(self, x_min, x_max, y_min, y_max, x_query):
         reward = 0
         if x_query < x_min:
             reward = y_max
