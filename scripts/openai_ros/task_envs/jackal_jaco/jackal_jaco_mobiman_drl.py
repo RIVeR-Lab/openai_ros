@@ -452,8 +452,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] prev_target2goal: " + str(self.prev_target2goal))
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] current_target2goal: " + str(current_target2goal))
             print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] diff_target2goal: " + str(self.prev_target2goal - current_target2goal))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal: " + str(weighted_reward_step_target2goal_diff))
-            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal: " + str(weighted_reward_step_target2goal_curr))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal_diff: " + str(weighted_reward_step_target2goal_diff))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal_curr: " + str(weighted_reward_step_target2goal_curr))
             self.prev_target2goal = current_target2goal
 
             # Step Reward 2: model mode
