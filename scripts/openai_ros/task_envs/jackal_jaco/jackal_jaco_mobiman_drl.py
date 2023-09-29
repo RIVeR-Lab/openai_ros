@@ -45,8 +45,8 @@ from nav_msgs.srv import GetPlan
 from std_srvs.srv import Empty
 from gazebo_msgs.msg import ModelStates
 from octomap_msgs.msg import Octomap
-from ocs2_msgs.msg import collision_info
-from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL, setBool, setBoolResponse, setMPCActionResult, setMPCActionResultResponse
+from ocs2_msgs.msg import collision_info # type: ignore
+from ocs2_msgs.srv import setDiscreteActionDRL, setContinuousActionDRL, setBool, setBoolResponse, setMPCActionResult, setMPCActionResultResponse # type: ignore
 
 from gym import spaces
 from gym.envs.registration import register
@@ -142,9 +142,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
 
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] Waiting for " + self.config.arm_state_msg_name + "...") # type: ignore
         rospy.wait_for_message(self.config.arm_state_msg_name, JointState)
-        
         rospy.Subscriber(self.config.arm_state_msg_name, JointState, self.callback_armstate)
+
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] Waiting for " + self.config.target_msg_name + "...") # type: ignore
+        #rospy.wait_for_message(self.config.arm_state_msg_name, MarkerArray)
         rospy.Subscriber(self.config.target_msg_name, MarkerArray, self.callback_target)
+
         rospy.Subscriber(self.config.occgrid_msg_name, OccupancyGrid, self.callback_occgrid)
         rospy.Subscriber(self.config.selfcoldistance_msg_name, collision_info, self.callback_selfcoldistance)
         rospy.Subscriber(self.config.extcoldistance_base_msg_name, collision_info, self.callback_extcoldistance_base)
@@ -200,6 +203,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.update_goal_data()
         self.update_target_data()
         self.init_observation_action_space()
+        #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::__init__] BEFORE prev_target2goal")
+        #self.prev_target2goal = self.get_euclidean_distance_3D(self.target_data, self.goal_data)
 
         self.reward_range = (-np.inf, np.inf)
         self.init_flag = True        
@@ -246,6 +251,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         self.update_goal_data()
         self.update_target_data()
         self.previous_base_distance2goal = self.get_base_distance2goal_2D()
+
+        if self.target_msg:
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] TARGET IS READY...")
+            self.prev_target2goal = self.get_euclidean_distance_3D(self.target_data, self.goal_data)
+        else:
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_init_env_variables] TARGET NOT READY!!!")
+            self.prev_target2goal = self.get_base_distance2goal_2D()
         
         #self.previous_action = np.array([[self.config.init_lateral_speed, self.config.init_angular_speed]]).reshape(self.config.fc_obs_shape)
 
@@ -392,6 +404,13 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     def _compute_reward(self, observations, done):
         print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] START")
 
+        # 0: MPC/MRT Failure
+        # 1: Collision
+        # 2: Rollover
+        # 3: Goal reached
+        # 4: Target reached
+        # 5: Time-horizon reached
+
         if self._episode_done and (not self._reached_goal):
 
             if self.termination_reason == 'collision':
@@ -424,37 +443,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.training_data.append([self.episode_reward])
 
         else:
-            # Step Reward 0: previous vs. current target to goal
+            # Step Reward 1: target to goal (considers both "previous vs. current" and "current target to goal")
             current_target2goal = self.get_euclidean_distance_3D(self.target_data, self.goal_data)
-            diff_target2goal = self.prev_target2goal - current_target2goal
-            reward_step_goal_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, diff_target2goal)
-            self.prev_target2goal = current_target2goal
+            reward_step_target2goal = self.reward_step_target2goal_func(current_target2goal, self.prev_target2goal)
+            weighted_reward_step_target2goal = self.config.alpha_step_target2goal * reward_step_target2goal # type: ignore
 
-            # Step Reward 1: base to goal
-            current_base_distance2goal = self.get_base_distance2goal_3D()
-            reward_step_goal_base = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_base_distance2goal)
-            weighted_reward_step_goal_base = self.config.alpha_step_goal_base * reward_step_goal_base # type: ignore
-            #self.previous_base_distance2goal = current_base_distance2goal
-
-            # Step Reward 2: ee to goal
-            current_ee_distance2goal = self.get_arm_distance2goal_3D()
-            if self.model_mode == 0:
-                current_ee_distance2goal = current_base_distance2goal
-            reward_step_goal_ee = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_goal, current_ee_distance2goal)
-            weighted_reward_step_goal_ee = self.config.alpha_step_goal_ee * reward_step_goal_ee # type: ignore
-
-            # Step Reward 3: ee to target
-            current_ee_distance2target_pos = self.get_arm_distance2target_3D()
-            current_ee_distance2target_ori = self.get_arm_quatdistance2target()
-            if self.model_mode == 0:
-                current_ee_distance2target_pos = self.get_base_distance2target_2D()
-                current_ee_distance2target_ori = self.get_base_yawdistance2target()
-            reward_step_target_pos = self.reward_func(0, self.config.goal_range_max_x, 0, self.config.reward_step_target, current_ee_distance2target_pos) # type: ignore
-            reward_step_target_ori = self.reward_func(0, 1.0, 0, self.config.reward_step_target, current_ee_distance2target_ori) # type: ignore
-            weighted_reward_step_target_pos = self.config.alpha_step_target_pos * reward_step_target_pos # type: ignore
-            weighted_reward_step_target_ori = self.config.alpha_step_target_pos * reward_step_target_ori # type: ignore
-            
-            # Step Reward 4: model mode
+            # Step Reward 2: model mode
             reward_step_mode = 0
             if self.model_mode == 0:
                 reward_step_mode = self.config.reward_step_mode0
@@ -468,20 +462,18 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             #        continue
             weighted_reward_step_mode = self.config.alpha_step_mode * reward_step_mode # type: ignore
 
-            # Step Reward 5: mpc result
+            # Step Reward 3: mpc result
             reward_step_mpc = 0
             if self.mpc_action_result == 0:
                 reward_step_mpc = self.config.reward_step_mpc_exit
-            #elif self.mpc_action_result == 4:
-            #    reward_step_mpc = reward_step_target_pos + reward_step_target_ori # type: ignore
-            elif self.mpc_action_result == 4 or self.mpc_action_result == 5:
-                reward_step_mpc = self.reward_func(0, self.config.action_time_horizon, 
-                                                   self.config.reward_step_time_horizon_min, self.config.reward_step_time_horizon_max, 
-                                                   self.dt_action)
-            weighted_reward_mpc = self.config.alpha_step_mpc_exit * reward_step_mpc # type: ignore
+            elif self.mpc_action_result == 4:
+                reward_step_mpc = self.config.reward_step_target_reached # type: ignore
+            elif self.mpc_action_result == 5:
+                reward_step_mpc = self.reward_step_time_horizon_func(self.dt_action)
+            weighted_reward_mpc = self.config.alpha_step_mpc_result * reward_step_mpc # type: ignore
 
             # Total Step Reward
-            self.step_reward = weighted_reward_step_goal_base + weighted_reward_step_goal_ee + weighted_reward_step_target_pos + weighted_reward_step_target_ori + weighted_reward_step_mode + weighted_reward_mpc
+            self.step_reward = weighted_reward_step_target2goal + weighted_reward_step_mode + weighted_reward_mpc
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
         
@@ -1099,6 +1091,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             self.target_data["pitch"] = e[1] # type: ignore
             self.target_data["yaw"] = e[2] # type: ignore
 
+            #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] UPDATED.")
+
             '''
             p = Point()
             p.x = self.target_data["x"]
@@ -1107,6 +1101,8 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
             debug_point_data = [p]
             self.publish_debug_visu(debug_point_data)
             '''
+        #else:
+        #    print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] NOT UPDATED!!!")
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::update_target_data] END")
 
     '''
@@ -1341,32 +1337,70 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
     '''
     DESCRIPTION: TODO...
     '''
-    def reward_func_linear_decreasing(self, x_min, x_max, y_min, y_max, x_query):
-        reward = 0
-        if x_query < x_min:
-            reward = y_max
-        elif x_query > x_max:
-            reward = y_min
+    def linear_function(self, x_min, x_max, y_min, y_max, query_x, slope_sign=1):
+        if x_min <= query_x <= x_max:
+            slope = slope_sign * (y_max - y_min) / (x_max - x_min)
+            y_intercept = y_max - slope * x_min
+            return slope * query_x + y_intercept
         else:
-            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min) + y_max
-        return reward
+            if query_x < x_min:
+                if slope_sign < 0:
+                    return y_max
+                else:
+                    return y_min
+            else:
+                if slope_sign < 0:
+                    return y_min
+                else:
+                    return y_max
+
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def reward_step_target2goal_func(self, curr_target2goal, prev_target2goal):
+        reward_step_target2goal_val = 0
+        if (curr_target2goal <= self.config.reward_step_target2goal_threshold):
+            reward_step_target2goal_val = self.linear_function(0.0, self.config.reward_step_target2goal_threshold, 
+                                                               0.0, self.config.reward_step_target2goal, 
+                                                               curr_target2goal, slope_sign=-1) # type: ignore
+        else:
+            reward_step_target2goal_val = self.linear_function(self.config.reward_step_target2goal_threshold, 2*self.config.reward_step_target2goal_threshold, # type: ignore
+                                                               -self.config.reward_step_target2goal, 0.0, # type: ignore
+                                                               curr_target2goal, slope_sign=-1) # type: ignore
+
+        scale = 1
+        diff_target2goal = prev_target2goal - curr_target2goal
+        diff_target2goal_abs = abs(diff_target2goal)
+        if diff_target2goal_abs < 2 * self.config.reward_step_target2goal_threshold: # type: ignore
+            scale = (diff_target2goal_abs + self.config.reward_step_target2goal_scale_beta * self.config.reward_step_target2goal_threshold) / (3*self.config.reward_step_target2goal_threshold) # type: ignore
+
+        reward_step_target2goal_val_scaled = scale * reward_step_target2goal_val # type: ignore
+
+        return reward_step_target2goal_val_scaled
     
     '''
     DESCRIPTION: TODO...
     '''
-    def reward_func_linear_increasing(self, x_min, x_max, y_min, y_max, x_query):
-        reward = 0
-        if x_query < x_min:
-            reward = y_max
-        elif x_query > x_max:
-            reward = y_min
+    def reward_step_time_horizon_func(self, dt_action):
+        reward_step_mpc_time_horizon = 0
+        if dt_action <= self.config.action_time_horizon:
+            reward_step_mpc_time_horizon = self.linear_function(0.0, self.config.action_time_horizon, 
+                                                                0.0, self.config.reward_step_time_horizon_max, 
+                                                                dt_action, slope_sign=-1) # type: ignore
+        elif dt_action <= 2*self.config.action_time_horizon: # type: ignore
+            reward_step_mpc_time_horizon = self.linear_function(self.config.action_time_horizon, 2*self.config.action_time_horizon,  # type: ignore
+                                                                   self.config.reward_step_time_horizon_min, 0.0, 
+                                                                   dt_action, slope_sign=-1) # type: ignore
         else:
-            reward = (y_min - y_max) * (x_query - x_min) / (x_max - x_min) + y_max
-        return reward
+            if  dt_action > 2*self.config.action_time_horizon: # type: ignore
+                reward_step_mpc_time_horizon = self.config.reward_step_time_horizon_min
+            else:
+                reward_step_mpc_time_horizon = self.config.reward_step_time_horizon_max
+
+        return reward_step_mpc_time_horizon
 
     '''
     DESCRIPTION: TODO...
-    value.
     '''
     def check_collision(self):
         #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::check_collision] START")
