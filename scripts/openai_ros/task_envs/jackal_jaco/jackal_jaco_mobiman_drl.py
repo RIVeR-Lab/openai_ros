@@ -445,8 +445,16 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         else:
             # Step Reward 1: target to goal (considers both "previous vs. current" and "current target to goal")
             current_target2goal = self.get_euclidean_distance_3D(self.target_data, self.goal_data)
-            reward_step_target2goal = self.reward_step_target2goal_func(current_target2goal, self.prev_target2goal)
-            weighted_reward_step_target2goal = self.config.alpha_step_target2goal * reward_step_target2goal # type: ignore
+            reward_step_target2goal_diff = self.reward_step_target2goal_diff_func(current_target2goal, self.prev_target2goal)
+            reward_step_target2goal_curr = self.reward_step_target2goal_curr_func(current_target2goal)
+            weighted_reward_step_target2goal_diff = self.config.alpha_step_target2goal_diff * reward_step_target2goal_diff # type: ignore
+            weighted_reward_step_target2goal_curr = self.config.alpha_step_target2goal_curr * reward_step_target2goal_curr # type: ignore
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] prev_target2goal: " + str(self.prev_target2goal))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] current_target2goal: " + str(current_target2goal))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] diff_target2goal: " + str(self.prev_target2goal - current_target2goal))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal: " + str(weighted_reward_step_target2goal_diff))
+            print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] weighted_reward_step_target2goal: " + str(weighted_reward_step_target2goal_curr))
+            self.prev_target2goal = current_target2goal
 
             # Step Reward 2: model mode
             reward_step_mode = 0
@@ -470,10 +478,12 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                 reward_step_mpc = self.config.reward_step_target_reached # type: ignore
             elif self.mpc_action_result == 5:
                 reward_step_mpc = self.reward_step_time_horizon_func(self.dt_action)
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] dt_action: " + str(self.dt_action))
+                print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step_mpc: " + str(reward_step_mpc))
             weighted_reward_mpc = self.config.alpha_step_mpc_result * reward_step_mpc # type: ignore
 
             # Total Step Reward
-            self.step_reward = weighted_reward_step_target2goal + weighted_reward_step_mode + weighted_reward_mpc
+            self.step_reward = weighted_reward_step_target2goal_diff + weighted_reward_step_target2goal_curr + weighted_reward_step_mode + weighted_reward_mpc
 
             #print("[jackal_jaco_mobiman_drl::JackalJacoMobimanDRL::_compute_reward] reward_step: " + str(reward_step))
         
@@ -1353,11 +1363,30 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
                     return y_min
                 else:
                     return y_max
+                
+    '''
+    DESCRIPTION: TODO...
+    '''     
+    def sigmoid_function(self, x, gamma):
+        return (1 / (1 + np.exp(-gamma * x))) # type: ignore
 
     '''
     DESCRIPTION: TODO...
     '''
-    def reward_step_target2goal_func(self, curr_target2goal, prev_target2goal):
+    def reward_step_target2goal_diff_func(self, curr_target2goal, prev_target2goal):
+        diff_target2goal = prev_target2goal - curr_target2goal
+        reward_step_target2goal_diff_sigmoid = 2 * self.config.reward_step_target2goal * self.sigmoid_function(diff_target2goal, self.config.reward_step_target2goal_threshold) - self.config.reward_step_target2goal # type: ignore
+
+        '''
+        scale = 1
+        diff_target2goal_abs = abs(diff_target2goal)
+        if diff_target2goal_abs < 2 * self.config.reward_step_target2goal_threshold: # type: ignore
+            scale = (diff_target2goal_abs + self.config.reward_step_target2goal_scale_beta * self.config.reward_step_target2goal_threshold) / (3*self.config.reward_step_target2goal_threshold) # type: ignore
+ 
+        reward_step_target2goal_data_sigmoid_scaled = scale * reward_step_target2goal_diff_sigmoid # type: ignore
+        '''
+
+        '''
         reward_step_target2goal_val = 0
         if (curr_target2goal <= self.config.reward_step_target2goal_threshold):
             reward_step_target2goal_val = self.linear_function(0.0, self.config.reward_step_target2goal_threshold, 
@@ -1374,9 +1403,21 @@ class JackalJacoMobimanDRL(jackal_jaco_env.JackalJacoEnv):
         if diff_target2goal_abs < 2 * self.config.reward_step_target2goal_threshold: # type: ignore
             scale = (diff_target2goal_abs + self.config.reward_step_target2goal_scale_beta * self.config.reward_step_target2goal_threshold) / (3*self.config.reward_step_target2goal_threshold) # type: ignore
 
-        reward_step_target2goal_val_scaled = scale * reward_step_target2goal_val # type: ignore
+        reward_step_target2goal_val_scaled = scale * pow(reward_step_target2goal_val, 3) / pow(self.config.reward_step_target2goal, 2)# type: ignore
+        '''
 
-        return reward_step_target2goal_val_scaled
+        return reward_step_target2goal_diff_sigmoid
+    
+    '''
+    DESCRIPTION: TODO...
+    '''
+    def reward_step_target2goal_curr_func(self, curr_target2goal):
+        if (curr_target2goal <= 2*self.config.reward_step_target2goal_threshold): # type: ignore
+            reward_step_target2goal_curr_linear = self.linear_function(0, 2*self.config.reward_step_target2goal_threshold, 0, self.config.reward_step_target2goal, curr_target2goal, -1) # type: ignore
+        else:
+            reward_step_target2goal_curr_linear = self.linear_function(2*self.config.reward_step_target2goal_threshold, 4*self.config.reward_step_target2goal_threshold, -self.config.reward_step_target2goal, 0.0, curr_target2goal, -1) # type: ignore
+
+        return reward_step_target2goal_curr_linear
     
     '''
     DESCRIPTION: TODO...

@@ -155,7 +155,8 @@ class Config():
             self.reward_step_time_horizon_min = rospy.get_param('reward_step_time_horizon_min', 0.0)
             self.reward_step_time_horizon_max = rospy.get_param('reward_step_time_horizon_max', 0.0)
 
-            self.alpha_step_target2goal = rospy.get_param('alpha_step_target2goal', 0.0)
+            self.alpha_step_target2goal_diff = rospy.get_param('alpha_step_target2goal_diff', 0.0)
+            self.alpha_step_target2goal_curr = rospy.get_param('alpha_step_target2goal_curr', 0.0)
             self.alpha_step_mode = rospy.get_param('alpha_step_mode', 0.0)
             self.alpha_step_mpc_result = rospy.get_param('alpha_step_mpc_result', 0.0)
             
@@ -231,7 +232,8 @@ class Config():
                 training_log_data.append(["reward_step_target_reached", self.reward_step_target_reached])
                 training_log_data.append(["reward_step_time_horizon_min", self.reward_step_time_horizon_min])
                 training_log_data.append(["reward_step_time_horizon_max", self.reward_step_time_horizon_max])
-                training_log_data.append(["alpha_step_target2goal", self.alpha_step_target2goal])
+                training_log_data.append(["alpha_step_target2goal_diff", self.alpha_step_target2goal_diff])
+                training_log_data.append(["alpha_step_target2goal_curr", self.alpha_step_target2goal_curr])
                 training_log_data.append(["alpha_step_mode", self.alpha_step_mode])
                 training_log_data.append(["alpha_step_mpc_result", self.alpha_step_mpc_result])
 
@@ -385,7 +387,8 @@ class Config():
         print("[mobiman_drl_config::Config::__init__] reward_step_target_reached: " + str(self.reward_step_target_reached))
         print("[mobiman_drl_config::Config::__init__] reward_step_time_horizon_min: " + str(self.reward_step_time_horizon_min))
         print("[mobiman_drl_config::Config::__init__] reward_step_time_horizon_max: " + str(self.reward_step_time_horizon_max))
-        print("[mobiman_drl_config::Config::__init__] alpha_step_target2goal: " + str(self.alpha_step_target2goal))
+        print("[mobiman_drl_config::Config::__init__] alpha_step_target2goal_diff: " + str(self.alpha_step_target2goal_diff))
+        print("[mobiman_drl_config::Config::__init__] alpha_step_target2goal_curr: " + str(self.alpha_step_target2goal_curr))
         print("[mobiman_drl_config::Config::__init__] alpha_step_mode: " + str(self.alpha_step_mode))
         print("[mobiman_drl_config::Config::__init__] alpha_step_mpc_result: " + str(self.alpha_step_mpc_result))
 
